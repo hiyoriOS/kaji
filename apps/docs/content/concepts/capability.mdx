@@ -15,7 +15,7 @@ const refundPayment = capability({
 });
 ```
 
-## What happens on each call
+## Call order
 
 `kaji.execute()` always runs these steps in order:
 
@@ -28,19 +28,19 @@ const refundPayment = capability({
 
 If a step stops the request, the later steps do not run.
 
-## `name`
+## Name
 
 A non-empty string that identifies the action, such as `"payments.refund"`. Keep it stable: it is part of how Kaji recognizes repeat requests, so renaming it means old retries no longer match.
 
-## `input`
+## Input
 
 A [Standard Schema](https://standardschema.dev) V1 schema: Zod, Valibot, ArkType, or an object with a `~standard` property that has `version: 1` and a `validate` function. `authorize`, `approval`, and `execute` receive the validated result, never the raw input.
 
 If validation fails, `kaji.execute()` rejects with an `InvalidInputError` whose `issues` property holds the schema's issues. Nothing else runs.
 
-## `authorize`
+## Authorize
 
-Required. Receives `principalId` and the validated input, and returns `true` or `false` (or a promise of either). `false`, or a thrown error, gives a `denied` result and `execute` does not run.
+Required. Receives `principalId` and the validated input, and returns `true` or `false` (or a promise of either). Only `true` lets the request continue. Anything else gives a `denied` result and `execute` does not run: `false`, a thrown error, or any other value, such as `undefined` from a missing `return`.
 
 Kaji does not log users in. Set `principalId` from your own session or auth check, and never from untrusted request data.
 
@@ -52,9 +52,11 @@ await kaji.execute(deleteProject, {
 });
 ```
 
-## `approval`
+## Approval
 
-Optional. A function that returns `true` when this request needs approval. It receives the same `principalId` and input as `authorize`, and must return synchronously.
+Optional. A function that returns `true` when this request needs approval and `false` when it does not. It receives the same `principalId` and input as `authorize`, and must return synchronously.
+
+Approval is skipped only when the function returns exactly `false`. Any other value, including a promise from an `async` function, requires approval. If the function throws, Kaji returns `rejected`.
 
 When it returns `true`, Kaji calls the `approve` function you passed to `createKaji()`:
 
@@ -71,7 +73,7 @@ const kaji = createKaji({
 
 `authorize` runs first, so an unauthorized request never reaches `approve`.
 
-## `execute`
+## Execute
 
 Receives the validated input and a context:
 

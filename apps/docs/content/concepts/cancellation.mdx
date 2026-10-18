@@ -14,13 +14,20 @@ execute: async (input, context) => {
 },
 ```
 
-To cancel a request, pass your own signal to `kaji.execute()` as `signal`.
+To cancel a request, pass your own signal to `kaji.execute()` as `signal`:
 
-## Before the action starts
+```ts
+const controller = new AbortController();
+const pending = kaji.execute(refundPayment, { ...request, signal: controller.signal });
+
+controller.abort();
+```
+
+## Before execute
 
 If the signal is already aborted before `execute` is called, Kaji returns `cancelled` and `execute` does not run.
 
-## After the action starts
+## During execute
 
 Kaji cannot stop your function or a remote request. `execute` has to watch `context.signal` itself:
 
@@ -36,6 +43,10 @@ execute: async (input, context) => {
 
 An abort does not undo anything and does not prove a remote request stopped.
 
+## Waiting on a duplicate
+
+If the same request is already running, `kaji.execute()` waits for its result. Aborting the signal, or reaching `timeoutMs`, stops the wait and returns `unknown`, not `cancelled`, because the original request may still complete. It keeps running and saves its own result, and retrying with the same key returns it.
+
 ## Timeouts
 
 ```ts
@@ -44,5 +55,7 @@ const kaji = createKaji({
   timeoutMs: 30_000,
 });
 ```
+
+`timeoutMs` must be greater than 0 and at most 2,147,483,647 (about 24 days). `createKaji()` throws a `KajiConfigurationError` for any other value.
 
 After `timeoutMs`, Kaji aborts `context.signal`. It does not stop `execute`: Kaji still waits for it to finish. For the timeout to have an effect, your function or the API it calls must watch the signal. If you also pass a `signal` to `kaji.execute()`, whichever aborts first wins.

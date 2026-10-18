@@ -9,11 +9,11 @@ Kaji needs a store to remember which requests it has seen and what happened. Pas
 const kaji = createKaji({ store: memoryStore() });
 ```
 
-## `memoryStore()`
+## Memory store
 
 Keeps records in memory. It is meant for development, tests, and examples. It only works inside one process, and it loses everything when the process exits.
 
-## Writing a store
+## Custom stores
 
 For production, write a store backed by a database. A store has two methods:
 
@@ -41,22 +41,147 @@ type ClaimResult =
 ```
 
 - `claimed`: a new request. Kaji goes ahead.
-- `existing`: the same request was already made. Return its saved result, or a promise for it if it is still running.
+- `existing`: the same request was already made. Return its saved result, or a promise for it if it is still running. If the original request runs in another process, the promise must resolve once that process records its result.
 - `conflict`: the same capability, `principalId`, and `idempotencyKey` came with different input (its `inputFingerprint`, a hash of the validated input, differs).
 
 If two callers send the same new request at once, exactly one must get `claimed`. Use a unique constraint or a transaction.
 
 `record()` saves the final result of a claimed request. It must never overwrite a result that is already saved, in particular never replace `unknown` with something else.
 
-## Before going to production
+## Example: SQLite store
+
+This store keeps records in one SQLite file, so every process on the machine that opens the file shares them. It uses Bun's built-in `bun:sqlite`.
+
+```ts
+import { Database } from "bun:sqlite";
+import type { ClaimResult, ExecutionClaim, ExecutionStore, StoredExecution } from "@hiyorios/kaji";
+
+const MAX_WAIT_MS = 30_000;
+
+export function sqliteStore(db: Database): ExecutionStore {
+  // Let several processes share one file: wait for locks instead of failing.
+  db.run("PRAGMA busy_timeout = 5000");
+  db.run("PRAGMA journal_mode = WAL");
+  db.run(`CREATE TABLE IF NOT EXISTS kaji_executions (
+    capability TEXT NOT NULL,
+    principal_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    input_fingerprint TEXT NOT NULL,
+    execution_id TEXT NOT NULL,
+    outcome TEXT,
+    PRIMARY KEY (capability, principal_id, idempotency_key)
+  )`);
+
+  const insert = db.query(
+    `INSERT OR IGNORE INTO kaji_executions
+       (capability, principal_id, idempotency_key, input_fingerprint, execution_id)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+  const select = db.query(
+    `SELECT input_fingerprint, execution_id, outcome FROM kaji_executions
+     WHERE capability = ? AND principal_id = ? AND idempotency_key = ?`,
+  );
+  const update = db.query(
+    `UPDATE kaji_executions SET outcome = ? WHERE execution_id = ? AND outcome IS NULL`,
+  );
+
+  type Row = { input_fingerprint: string; execution_id: string; outcome: string | null };
+  const read = (claim: ExecutionClaim) =>
+    select.get(claim.capability, claim.principalId, claim.idempotencyKey) as Row;
+
+  return {
+    async claim(claim: ExecutionClaim): Promise<ClaimResult> {
+      const { changes } = insert.run(
+        claim.capability,
+        claim.principalId,
+        claim.idempotencyKey,
+        claim.inputFingerprint,
+        crypto.randomUUID(),
+      );
+      const row = read(claim);
+      if (changes === 1) return { status: "claimed", executionId: row.execution_id };
+      if (row.input_fingerprint !== claim.inputFingerprint) {
+        return { status: "conflict", executionId: row.execution_id };
+      }
+      return { status: "existing", outcome: waitForOutcome(claim) };
+    },
+
+    async record(execution: StoredExecution): Promise<void> {
+      let json: string;
+      try {
+        json = serialize(execution);
+      } catch (cause) {
+        // The result cannot be stored (for example a bigint). Save an
+        // `unknown` so duplicates do not wait for a result that never
+        // comes, then fail so the caller gets `unknown` too.
+        update.run(
+          serialize({
+            status: "unknown",
+            error: new Error("The result could not be saved."),
+            evidence: execution.evidence,
+          }),
+          execution.evidence.executionId,
+        );
+        throw cause;
+      }
+      const { changes } = update.run(json, execution.evidence.executionId);
+      if (changes !== 1) throw new Error("No open claim to record.");
+    },
+  };
+
+  async function waitForOutcome(claim: ExecutionClaim): Promise<StoredExecution> {
+    const deadline = Date.now() + MAX_WAIT_MS;
+    for (;;) {
+      const row = read(claim);
+      if (row.outcome !== null) return JSON.parse(row.outcome);
+      if (Date.now() >= deadline) {
+        // The original request never recorded a result, for example
+        // because its process crashed. Report `unknown`, not a guess.
+        return {
+          status: "unknown",
+          error: new Error("The original request did not record a result."),
+          evidence: {
+            executionId: row.execution_id,
+            capability: claim.capability,
+            principalId: claim.principalId,
+            idempotencyKey: claim.idempotencyKey,
+            inputFingerprint: claim.inputFingerprint,
+          },
+        };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
+
+function serialize(execution: StoredExecution): string {
+  return JSON.stringify(execution, (_key, value) =>
+    value instanceof Error ? { name: value.name, message: value.message } : value,
+  );
+}
+```
+
+How it meets the contract:
+
+- **Atomic claim.** The primary key on `(capability, principal_id, idempotency_key)` makes `INSERT OR IGNORE` succeed for exactly one caller. Everyone else reads the existing row and gets `existing` or `conflict`.
+- **Waiting.** An `existing` caller polls until `record()` fills in `outcome`. If the original never records, for example because its process crashed, the poll gives up after 30 seconds and returns `unknown`.
+- **Record once.** `UPDATE ... WHERE outcome IS NULL` never overwrites a saved result, including `unknown`.
+- **Locking.** `busy_timeout` and WAL mode make concurrent processes wait for each other instead of failing with "database is locked". Set `busy_timeout` first. `bun:sqlite` is synchronous, so a long wait blocks the event loop.
+- **Unsavable results.** If a result cannot be turned into JSON (a `bigint`, for example), the store saves `unknown` and fails, so Kaji reports `unknown` and duplicates do not wait.
+- **Errors.** `error` is stored as `{ name, message }`, so a replayed result carries a plain object, not the original `Error`. Dates and other non-JSON values in `result` come back as their JSON form.
+
+In a test, 8 processes sharing one file sent 1,600 requests for 200 actions, and each action ran exactly once. SQLite suits a single machine. For several machines use Postgres or MySQL with the same structure: a unique key on the identity, an insert that does nothing on conflict, and a conditional update.
+
+## Production checklist
 
 Check that your store:
 
 - claims atomically, so concurrent duplicates get one `claimed`
 - is shared by every process that runs the capability
 - keeps its records across restarts
+- has a plan for requests that were claimed but never recorded, such as a process that crashed mid-action
 - has a plan for how long to keep records
 
-## When the store fails
+## Failures
 
 If `claim()` fails, `kaji.execute()` rejects with a `KajiConfigurationError` and nothing ran. If `record()` fails, you get `unknown`, because the action may already have run.

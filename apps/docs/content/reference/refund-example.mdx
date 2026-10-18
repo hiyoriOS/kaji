@@ -3,7 +3,7 @@ title: Refund example
 description: A runnable example with a fake payment provider.
 ---
 
-The repository includes a runnable refund example in `examples/refund`. It uses a fake payment provider and exits with an error if any check fails.
+The Kaji repository includes a runnable refund example in `examples/refund`. Run these commands from a clone of the repository. It uses a fake payment provider and exits with an error if any check fails.
 
 ```bash
 bun install --frozen-lockfile
@@ -17,7 +17,7 @@ It shows four cases:
 3. A provider that completes the refund but then loses its reply returns `unknown`.
 4. A provider that declines the refund up front returns `failed`, because the capability throws `knownFailure()`.
 
-## The capability
+## Capability
 
 ```ts
 const refund = capability({

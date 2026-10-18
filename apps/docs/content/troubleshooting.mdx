@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Fix common errors and unexpected results.
 ---
 
-## Errors when creating a capability
+## Invalid capability
 
 `capability()` throws immediately when the definition is wrong.
 
@@ -13,33 +13,33 @@ description: Fix common errors and unexpected results.
 - `capability() input schema must implement Standard Schema version 1.` The schema's `~standard.version` must be `1`.
 - `capability() input schema must provide a "~standard.validate" function.` Add a `validate` function to the schema's `~standard` object.
 
-## `kaji.execute()` rejects instead of returning a status
+## Request errors
 
-This happens when the request cannot start: an empty `principalId` or `idempotencyKey`, input that fails validation (`InvalidInputError`), or a store failure on `claim()` (`KajiConfigurationError`). Fix the request or the store and try again.
+This happens when the request cannot start: an empty `principalId` or `idempotencyKey`, input that fails validation (`InvalidInputError`), input Kaji cannot fingerprint (`UnfingerprintableValueError`, for example a `Map`, a circular reference, or an invalid date), or a store failure on `claim()` (`KajiConfigurationError`). Fix the request or the store and try again.
 
-## Results
+`createKaji()` also throws a `KajiConfigurationError` when `timeoutMs` is not greater than 0 and at most 2,147,483,647.
 
-- **`denied`**: `authorize` returned `false` or threw. Check your permission rules. The original error, if any, is in `error`.
-- **`rejected`**: approval was required and not given. Check that `createKaji()` has an `approve` function, that it returns `{ approved: boolean }`, that it returns `approved: true`, and that it does not throw.
+## Unexpected status
+
+- **`denied`**: `authorize` returned anything other than `true`, or threw. A function that forgets to `return` is denied. Check your permission rules. The original error, if any, is in `error`.
+- **`rejected`**: approval was required and not given, or `approval` threw. An `async` `approval` function always requires approval, so make it synchronous. Check that `createKaji()` has an `approve` function, that it returns `{ approved: true }` when you want the action to run, and that it does not throw.
 - **`failed`**: either the idempotency key was reused with different input, or `execute` threw `knownFailure()`. For the first, use the original input to retry, or a new key for a new request.
-- **`unknown`**: see below.
+- **`unknown`**: see [Unexpected unknown](#unexpected-unknown).
 
-## My action did not run again on retry
+## Retries
 
 That is intended. The same capability, `principalId`, `idempotencyKey`, and input return the saved result. Use a new `idempotencyKey` for a new request. This includes a saved `unknown`: check with the provider, then use a new key only once you know a new request is safe.
 
-## `execute` threw and I got `unknown`
+## Unexpected unknown
 
 Kaji cannot tell whether the side effect happened before the error. Throw `knownFailure(cause)` only when you know it did not. See [Outcomes](/docs/concepts/outcomes).
 
-## `timeoutMs` did not stop my function
+You also get `unknown` if the store fails to save the result. Check the store before retrying.
+
+## Timeouts
 
 The timeout only aborts `context.signal`. Pass the signal to the API you call, or check it yourself. See [Cancellation](/docs/concepts/cancellation).
 
-## Everything disappeared after a restart
+## Lost records
 
 `memoryStore()` only keeps records in memory for one process. Use a store backed by a database in production. See [Stores](/docs/concepts/stores).
-
-## `unknown` after a store error
-
-If `record()` fails, Kaji returns `unknown` because the action may have already run. Check the store before retrying.
