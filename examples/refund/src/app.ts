@@ -1,5 +1,5 @@
 /**
- * Proof example: a payment refund action governed by @hiyori/kaji.
+ * Proof example: a payment refund action governed by @hiyorios/kaji.
  *
  * This file answers the questions a developer evaluating the package
  * would ask: what do I wrap, where does my business logic stay, how do I
@@ -13,7 +13,7 @@
  */
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { capability, createKaji, knownFailure, memoryStore } from "@hiyori/kaji";
+import { capability, createKaji, knownFailure, memoryStore } from "@hiyorios/kaji";
 import {
   AcknowledgementLostError,
   PaymentDeclinedError,

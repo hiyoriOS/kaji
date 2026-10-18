@@ -1,9 +1,9 @@
 ---
 title: API reference
-description: Review every public function and type exported by `@hiyori/kaji`.
+description: Review every public function and type exported by `@hiyorios/kaji`.
 ---
 
-`@hiyori/kaji` has one package entry point.
+`@hiyorios/kaji` has one package entry point.
 
 ```ts
 import {
@@ -20,7 +20,7 @@ import {
   type ExecutionResult,
   type ExecutionStore,
   type StoredExecution,
-} from "@hiyori/kaji";
+} from "@hiyorios/kaji";
 ```
 
 ## `capability()`
@@ -86,7 +86,7 @@ function createKaji(options: {
 
 `timeoutMs` aborts the effective execution signal after the configured duration. Kaji still awaits `execute()` until it settles.
 
-The `approve` handler can return optional evidence. Kaji accepts this field but does not expose or persist it in `@hiyori/kaji@0.3.1`.
+The `approve` handler can return optional evidence. Kaji accepts this field but does not expose or persist it in `@hiyorios/kaji@0.3.1`.
 
 ## `ExecutionRequest`
 

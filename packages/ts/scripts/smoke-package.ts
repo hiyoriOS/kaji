@@ -36,7 +36,7 @@ try {
   writeFileSync(
     join(temporaryDirectory, "import.mjs"),
     [
-      'import { capability, createKaji, knownFailure, memoryStore } from "@hiyori/kaji";',
+      'import { capability, createKaji, knownFailure, memoryStore } from "@hiyorios/kaji";',
       "const noop = capability({",
       '  name: "smoke.test",',
       "  input: { '~standard': { version: 1, vendor: 'smoke', validate: (value) => ({ value }) } },",
@@ -68,7 +68,7 @@ try {
   writeFileSync(
     join(temporaryDirectory, "consumer.ts"),
     [
-      'import { capability, createKaji, memoryStore } from "@hiyori/kaji";',
+      'import { capability, createKaji, memoryStore } from "@hiyorios/kaji";',
       "",
       "// Hand-written Standard Schema: `version` needs `as const` and the",
       "// `types` field carries the validated output for callback inference.",
@@ -128,7 +128,9 @@ try {
     },
   );
 
-  readFileSync(join(temporaryDirectory, "node_modules", "@hiyori", "kaji", "dist", "index.d.mts"));
+  readFileSync(
+    join(temporaryDirectory, "node_modules", "@hiyorios", "kaji", "dist", "index.d.mts"),
+  );
 } finally {
   rmSync(temporaryDirectory, { force: true, recursive: true });
 }

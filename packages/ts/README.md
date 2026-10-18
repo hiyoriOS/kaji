@@ -13,7 +13,7 @@ Invalid capability input rejects with an `InvalidInputError` before Kaji claims,
 ## Install
 
 ```bash
-npm install @hiyori/kaji zod
+npm install @hiyorios/kaji zod
 ```
 
 Kaji accepts any [Standard Schema](https://standardschema.dev) V1 schema as `input`. This example uses Zod, but Valibot, ArkType, and hand-written schemas work the same way.
@@ -21,7 +21,7 @@ Kaji accepts any [Standard Schema](https://standardschema.dev) V1 schema as `inp
 ## Minimal example
 
 ```ts
-import { capability, createKaji, memoryStore } from "@hiyori/kaji";
+import { capability, createKaji, memoryStore } from "@hiyorios/kaji";
 import { z } from "zod";
 
 const refunds = new Map<string, number>();
@@ -87,7 +87,7 @@ Application code can throw `knownFailure(cause)` only when it knows that no side
 `failed` does not state whether an error is retryable or permanent. Your application owns that policy.
 
 ```ts
-import { knownFailure } from "@hiyori/kaji";
+import { knownFailure } from "@hiyorios/kaji";
 
 try {
   return await provider.refund(input, { signal: context.signal });

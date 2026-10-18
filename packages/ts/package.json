@@ -1,5 +1,5 @@
 {
-  "name": "@hiyori/kaji",
+  "name": "@hiyorios/kaji",
   "version": "0.3.1",
   "description": "An embedded execution layer for application actions requested by agents, automations, and other callers.",
   "homepage": "https://kaji.build",

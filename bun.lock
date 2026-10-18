@@ -30,10 +30,10 @@
       },
     },
     "examples/refund": {
-      "name": "@hiyori/kaji-example-refund",
+      "name": "@hiyorios/kaji-example-refund",
       "version": "0.0.0",
       "dependencies": {
-        "@hiyori/kaji": "workspace:*",
+        "@hiyorios/kaji": "workspace:*",
         "zod": "4.1.12",
       },
       "devDependencies": {
@@ -44,7 +44,7 @@
       },
     },
     "packages/ts": {
-      "name": "@hiyori/kaji",
+      "name": "@hiyorios/kaji",
       "version": "0.3.1",
       "devDependencies": {
         "@arethetypeswrong/cli": "^0.18.2",
@@ -219,9 +219,9 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.28.2", "", { "os": "win32", "cpu": "x64" }, "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="],
 
-    "@hiyori/kaji": ["@hiyori/kaji@workspace:packages/ts"],
+    "@hiyorios/kaji": ["@hiyorios/kaji@workspace:packages/ts"],
 
-    "@hiyori/kaji-example-refund": ["@hiyori/kaji-example-refund@workspace:examples/refund"],
+    "@hiyorios/kaji-example-refund": ["@hiyorios/kaji-example-refund@workspace:examples/refund"],
 
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 

@@ -1,6 +1,6 @@
 # Refund example
 
-Proves that `@hiyori/kaji` is sufficient to govern a realistic,
+Proves that `@hiyorios/kaji` is sufficient to govern a realistic,
 state-changing application action end to end.
 
 ## What this proves
