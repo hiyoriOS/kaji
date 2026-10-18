@@ -1,8 +1,8 @@
 {
-  "name": "@irogane/kaji-example-refund",
+  "name": "@hiyori/kaji-example-refund",
   "version": "0.0.0",
   "private": true,
-  "description": "Proof example: a payment refund action governed by @irogane/kaji.",
+  "description": "Proof example: a payment refund action governed by @hiyori/kaji.",
   "type": "module",
   "scripts": {
     "start": "bun run src/app.ts",
@@ -12,7 +12,7 @@
     "format:check": "oxfmt --check package.json tsconfig.json src"
   },
   "dependencies": {
-    "@irogane/kaji": "workspace:*",
+    "@hiyori/kaji": "workspace:*",
     "zod": "4.1.12"
   },
   "devDependencies": {
