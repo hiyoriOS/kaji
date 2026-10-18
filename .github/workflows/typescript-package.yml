@@ -1,0 +1,56 @@
+name: TypeScript package
+
+# Package checks run only when something the package depends on changes.
+# Docs-only changes are verified by the docs-site workflow instead.
+# Runs on a Blacksmith runner (billed by Blacksmith, not GitHub Actions
+# minutes); publish.yml stays on GitHub-hosted runners for npm provenance.
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "packages/ts/**"
+      - "examples/**"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/typescript-package.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "README.md"
+      - "packages/ts/**"
+      - "examples/**"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/typescript-package.yml"
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels the run it replaces.
+concurrency:
+  group: typescript-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun --filter=@hiyorios/kaji run format:check
+      - run: bun --filter=@hiyorios/kaji run lint
+      - run: bun --filter=@hiyorios/kaji run typecheck
+      - run: bun --filter=@hiyorios/kaji run test
+      - run: bun --filter=@hiyorios/kaji run build
+      - run: bun run readme:check
+      - run: bun --filter=@hiyorios/kaji run package:check
+      - run: bun --filter=@hiyorios/kaji run package:smoke
+      - run: bun --filter=@hiyorios/kaji-example-refund run typecheck
+      - run: bun run example:refund
