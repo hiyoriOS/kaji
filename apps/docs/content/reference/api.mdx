@@ -103,7 +103,12 @@ type ExecutionResult<Result> =
       readonly evidence: ExecutionEvidence;
     }
   | {
-      readonly status: "denied" | "rejected" | "failed" | "cancelled" | "unknown";
+      readonly status: "denied" | "rejected" | "failed" | "cancelled";
+      readonly error: unknown;
+      readonly evidence: ExecutionEvidence;
+    }
+  | {
+      readonly status: "unknown";
       readonly error: unknown;
       readonly evidence: ExecutionEvidence;
     };

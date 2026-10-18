@@ -7,13 +7,11 @@ description: Fix common errors and unexpected results.
 
 `capability()` throws immediately when the definition is wrong.
 
-| Error                                                                                 | Fix                                                                           |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `capability() requires a non-empty name.`                                             | Give the capability a name such as `"payments.refund"`.                       |
-| `capability() requires an authorize function.`                                        | Add `authorize`. There is no default.                                         |
-| `capability() requires input to be a Standard Schema (missing "~standard" property).` | Pass a Standard Schema V1 schema. Zod, Valibot, and ArkType work as they are. |
-| `capability() input schema must implement Standard Schema version 1.`                 | The schema's `~standard.version` must be `1`.                                 |
-| `capability() input schema must provide a "~standard.validate" function.`             | Add a `validate` function to the schema's `~standard` object.                 |
+- `capability() requires a non-empty name.` Give the capability a name such as `"payments.refund"`.
+- `capability() requires an authorize function.` Add `authorize`. There is no default.
+- `capability() requires input to be a Standard Schema (missing "~standard" property).` Pass a Standard Schema V1 schema. Zod, Valibot, and ArkType work as they are.
+- `capability() input schema must implement Standard Schema version 1.` The schema's `~standard.version` must be `1`.
+- `capability() input schema must provide a "~standard.validate" function.` Add a `validate` function to the schema's `~standard` object.
 
 ## `kaji.execute()` rejects instead of returning a status
 
