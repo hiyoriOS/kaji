@@ -74,7 +74,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       # Release gate. These are the repository's own commands, identical to
-      # typescript-package.yml, so a green CI on main implies these pass.
+      # the CircleCI `package` job, so a green CI on main implies these pass.
       # Build precedes typecheck: the example workspace's tsc resolves
       # @hiyorios/kaji through dist/index.d.mts, which does not exist in a
       # pristine checkout.

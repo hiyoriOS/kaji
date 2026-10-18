@@ -34,7 +34,8 @@ The repository is the source of truth. Important decisions must exist in code, t
 ├── tooling/
 │   ├── checks/               # structural/API/repository checks
 │   └── scripts/              # narrow automation only
-└── .github/workflows/
+├── .circleci/                # CI: package and docs checks
+└── .github/workflows/        # npm release only (needs GitHub's OIDC)
 ```
 
 Do not add a new top-level directory unless the responsibility cannot fit an existing one cleanly.
