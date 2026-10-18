@@ -4,12 +4,12 @@
   "description": "An embedded execution layer for application actions requested by agents, automations, and other callers.",
   "homepage": "https://kaji.build",
   "bugs": {
-    "url": "https://github.com/enkyuan/kaji/issues"
+    "url": "https://github.com/hiyoriOS/kaji/issues"
   },
   "license": "FSL-1.1-ALv2",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/enkyuan/kaji.git",
+    "url": "git+https://github.com/hiyoriOS/kaji.git",
     "directory": "packages/ts"
   },
   "files": [

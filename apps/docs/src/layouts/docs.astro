@@ -22,7 +22,7 @@ const plainDescription = description.replaceAll("`", "");
 const slug = activeHref === "/docs" ? undefined : activeHref.slice("/docs/".length);
 const markdownHref =
   slug === undefined ? "/llms.mdx/docs/content.md" : `/llms.mdx/docs/${slug}/content.md`;
-const editHref = `https://github.com/enkyuan/kaji/blob/main/apps/docs/content/${sourcePath}`;
+const editHref = `https://github.com/hiyoriOS/kaji/blob/main/apps/docs/content/${sourcePath}`;
 ---
 
 <Base title={title} description={plainDescription} activeHref={activeHref} headings={headings}>
