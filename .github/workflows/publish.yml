@@ -1,4 +1,4 @@
-# npm staged release for @hiyori/kaji.
+# npm staged release for @hiyorios/kaji.
 #
 # A human dispatches this workflow from main. It runs the full release gate,
 # then stages the exact verified artifact to npm's private staging area. It
@@ -7,7 +7,7 @@
 # publishing (OIDC) is used for staging, so no npm token exists anywhere.
 #
 # External prerequisite (ops/npm-trusted-publishing): the npm trusted
-# publisher for @hiyori/kaji must allow `npm stage publish` from this
+# publisher for @hiyorios/kaji must allow `npm stage publish` from this
 # workflow file (publish.yml) and the `npm-release` environment.
 
 name: npm release
@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   stage:
-    name: Verify and stage @hiyori/kaji
+    name: Verify and stage @hiyorios/kaji
     runs-on: ubuntu-latest
     environment: npm-release
     timeout-minutes: 30
@@ -76,7 +76,7 @@ jobs:
       # Release gate. These are the repository's own commands, identical to
       # typescript-package.yml, so a green CI on main implies these pass.
       # Build precedes typecheck: the example workspace's tsc resolves
-      # @hiyori/kaji through dist/index.d.mts, which does not exist in a
+      # @hiyorios/kaji through dist/index.d.mts, which does not exist in a
       # pristine checkout.
       - name: Format check
         run: bun run format:check

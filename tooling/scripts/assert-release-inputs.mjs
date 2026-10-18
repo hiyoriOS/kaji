@@ -1,4 +1,4 @@
-// Release input assertions for @hiyori/kaji staging.
+// Release input assertions for @hiyorios/kaji staging.
 // Zero-dependency Node script so the release workflow does not need a
 // separate package to run it. Exits non-zero and explains why when any
 // precondition for `npm stage publish` is not met.
@@ -41,8 +41,8 @@ if (!packageDir) fail("--package-dir is required");
 
 const manifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
 
-if (manifest.name !== "@hiyori/kaji") {
-  fail(`package name must be @hiyori/kaji, got "${manifest.name}"`);
+if (manifest.name !== "@hiyorios/kaji") {
+  fail(`package name must be @hiyorios/kaji, got "${manifest.name}"`);
 }
 if (manifest.private === true) {
   fail('package is marked "private": true and can never be published');

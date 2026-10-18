@@ -11,10 +11,10 @@
     "lint": "bun --filter='*' run lint",
     "format": "bun --filter='*' run format",
     "format:check": "bun --filter='*' run format:check",
-    "test": "bun --filter=@hiyori/kaji run test",
+    "test": "bun --filter=@hiyorios/kaji run test",
     "readme:check": "cmp -s README.md packages/ts/README.md || (echo 'README drift: copy README.md to packages/ts/README.md' >&2; exit 1)",
-    "package:check": "bun run readme:check && bun --filter=@hiyori/kaji run package:check",
-    "package:smoke": "bun --filter=@hiyori/kaji run package:smoke",
-    "example:refund": "bun --filter=@hiyori/kaji-example-refund run start"
+    "package:check": "bun run readme:check && bun --filter=@hiyorios/kaji run package:check",
+    "package:smoke": "bun --filter=@hiyorios/kaji run package:smoke",
+    "example:refund": "bun --filter=@hiyorios/kaji-example-refund run start"
   }
 }

@@ -9,9 +9,9 @@ import InstallTabs from "../src/components/content/install-tabs.astro";
 
 <InstallTabs
   commands={{
-    npm: "npm install @hiyori/kaji zod",
-    bun: "bun add @hiyori/kaji zod",
-    pnpm: "pnpm add @hiyori/kaji zod",
+    npm: "npm install @hiyorios/kaji zod",
+    bun: "bun add @hiyorios/kaji zod",
+    pnpm: "pnpm add @hiyorios/kaji zod",
   }}
 />
 
@@ -22,7 +22,7 @@ Kaji accepts any [Standard Schema](https://standardschema.dev) V1 schema as `inp
 A capability names one application action. It also defines input validation, authorization, optional approval, and execution.
 
 ```ts
-import { capability } from "@hiyori/kaji";
+import { capability } from "@hiyorios/kaji";
 import { z } from "zod";
 
 const refunds = new Map<string, number>();
@@ -46,7 +46,7 @@ Kaji validates `input` before it calls `authorize` or `execute`. Invalid input r
 ## Create the executor
 
 ```ts
-import { createKaji, memoryStore } from "@hiyori/kaji";
+import { createKaji, memoryStore } from "@hiyorios/kaji";
 
 const kaji = createKaji({ store: memoryStore() });
 ```
