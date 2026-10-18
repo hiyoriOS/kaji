@@ -1,6 +1,6 @@
 # Release playbook
 
-How to take `@irogane/kaji` from a green `main` to a published npm release.
+How to take `@hiyori/kaji` from a green `main` to a published npm release.
 The system is tokenless: CI stages via OIDC trusted publishing; only a human
 with 2FA can make a staged version public.
 
@@ -35,7 +35,7 @@ Requirements:
    - `next` channel: prerelease version only, e.g. `0.3.0-rc.1`.
    - `latest` channel: stable version only, e.g. `0.3.0`.
 4. Commit the version bump to `main` through a reviewed PR.
-5. Confirm the version does not already exist: `npm view @irogane/kaji@<version>`.
+5. Confirm the version does not already exist: `npm view @hiyori/kaji@<version>`.
 
 ## STAGE
 
@@ -56,7 +56,7 @@ Requirements:
 Run locally with an npm account that has write access to the package:
 
 ```sh
-npm stage list @irogane/kaji        # find the stage id
+npm stage list @hiyori/kaji        # find the stage id
 npm stage view <stage-id>           # metadata: version, tag, source
 npm stage download <stage-id>       # fetch the exact staged tarball
 ```
@@ -75,10 +75,10 @@ Clean-install the downloaded stage and exercise it before approving:
 mkdir /tmp/kaji-verify && cd /tmp/kaji-verify && npm init -y
 npm pkg set type=module
 npm install /path/to/staged.tgz
-node -e "import('@irogane/kaji').then(m => console.log(typeof m.createKaji))"
+node -e "import('@hiyori/kaji').then(m => console.log(typeof m.createKaji))"
 ```
 
-Verify metadata: name `@irogane/kaji`, expected version, dist-tag matches
+Verify metadata: name `@hiyori/kaji`, expected version, dist-tag matches
 the channel, `exports` points at `dist/index.mjs` + `dist/index.d.mts`,
 zero runtime dependencies.
 
@@ -95,12 +95,12 @@ npm stage approve <stage-id>        # publishes to the registry
 After approval:
 
 ```sh
-npm view @irogane/kaji versions --json      # exact version present
-npm view @irogane/kaji dist-tags --json     # next → rc, latest → stable
-npm view @irogane/kaji@<version> dist.integrity
+npm view @hiyori/kaji versions --json      # exact version present
+npm view @hiyori/kaji dist-tags --json     # next → rc, latest → stable
+npm view @hiyori/kaji@<version> dist.integrity
 mkdir /tmp/kaji-registry && cd /tmp/kaji-registry && npm init -y && npm pkg set type=module
-npm install @irogane/kaji            # rc: npm install @irogane/kaji@next
-node -e "import('@irogane/kaji').then(async m => {
+npm install @hiyori/kaji            # rc: npm install @hiyori/kaji@next
+node -e "import('@hiyori/kaji').then(async m => {
   const kaji = m.createKaji({ store: m.memoryStore() });
   const cap = m.capability({ name: 't',
     input: { '~standard': { version: 1, vendor: 'smoke',
@@ -127,7 +127,7 @@ Also verify: a duplicate replay returns the recorded outcome,
 3. Stable releases only: enable the docs install UI (homepage install
    command, header npm link, getting-started install, README install
    section). This is the `docs/npm-live` task. Never enable before
-   `npm view @irogane/kaji dist-tags` shows `latest` = the stable version.
+   `npm view @hiyori/kaji dist-tags` shows `latest` = the stable version.
 
 ## ROLLBACK / REJECTION
 
@@ -138,7 +138,7 @@ Also verify: a duplicate replay returns the recorded outcome,
   was already publicly published, fix forward with a NEW version; never
   try to overwrite or delete a published version.
 - A bad stable release: publish a fix release and move `latest`
-  (`npm dist-tag add @irogane/kaji@<version> latest`). Do not remove
+  (`npm dist-tag add @hiyori/kaji@<version> latest`). Do not remove
   versions from the registry.
 
 ## Invariants

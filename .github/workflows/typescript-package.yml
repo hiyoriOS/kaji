@@ -37,13 +37,13 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
-      - run: bun --filter=@irogane/kaji run format:check
-      - run: bun --filter=@irogane/kaji run lint
-      - run: bun --filter=@irogane/kaji run typecheck
-      - run: bun --filter=@irogane/kaji run test
-      - run: bun --filter=@irogane/kaji run build
+      - run: bun --filter=@hiyori/kaji run format:check
+      - run: bun --filter=@hiyori/kaji run lint
+      - run: bun --filter=@hiyori/kaji run typecheck
+      - run: bun --filter=@hiyori/kaji run test
+      - run: bun --filter=@hiyori/kaji run build
       - run: bun run readme:check
-      - run: bun --filter=@irogane/kaji run package:check
-      - run: bun --filter=@irogane/kaji run package:smoke
-      - run: bun --filter=@irogane/kaji-example-refund run typecheck
+      - run: bun --filter=@hiyori/kaji run package:check
+      - run: bun --filter=@hiyori/kaji run package:smoke
+      - run: bun --filter=@hiyori/kaji-example-refund run typecheck
       - run: bun run example:refund

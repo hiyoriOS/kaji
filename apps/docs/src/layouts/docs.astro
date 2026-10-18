@@ -22,7 +22,7 @@ const plainDescription = description.replaceAll("`", "");
 const slug = activeHref === "/docs" ? undefined : activeHref.slice("/docs/".length);
 const markdownHref =
   slug === undefined ? "/llms.mdx/docs/content.md" : `/llms.mdx/docs/${slug}/content.md`;
-const editHref = `https://github.com/enkyuan/kaji/blob/main/apps/docs/content/${sourcePath}`;
+const editHref = `https://github.com/hiyoriOS/kaji/blob/main/apps/docs/content/${sourcePath}`;
 ---
 
 <Base title={title} description={plainDescription} activeHref={activeHref} headings={headings}>
@@ -39,7 +39,7 @@ const editHref = `https://github.com/enkyuan/kaji/blob/main/apps/docs/content/${
         <span aria-hidden="true">·</span>
         <a href={editHref}>Edit on GitHub</a>
         <span aria-hidden="true">·</span>
-        <a href="https://www.npmjs.com/package/@irogane/kaji" target="_blank" rel="noopener noreferrer">npm</a>
+        <a href="https://www.npmjs.com/package/@hiyori/kaji" target="_blank" rel="noopener noreferrer">npm</a>
       </div>
     </header>
 
