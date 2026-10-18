@@ -1,4 +1,4 @@
-import { capabilityDefinition, type Capability } from "../capability.ts";
+import { capabilityDefinition, type Capability, type CapabilityDefinition } from "../capability.ts";
 import { resolveApproval, type ApproveHandler } from "./approval.ts";
 import { effectiveSignal } from "./signal.ts";
 import type { ExecutionContext } from "./context.ts";
@@ -7,7 +7,7 @@ import type { ExecutionRequest } from "./request.ts";
 import type { ExecutionStore } from "../store/store.ts";
 import { fingerprintInput } from "../store/fingerprint.ts";
 import { KajiConfigurationError, KnownFailure } from "../errors.ts";
-import { validateInput } from "../schema.ts";
+import { validateInput, type StandardSchemaV1 } from "../schema.ts";
 
 export type ExecuteDependencies = {
   readonly store: ExecutionStore;
@@ -72,7 +72,9 @@ export async function executeCapability<Input, Result>(
       // A concurrent or retried caller observes the same recorded outcome
       // instead of running the capability again (docs/api.md: "it must
       // not run `execute` again").
-      return (await claimResult.outcome) as ExecutionResult<Result>;
+      return await awaitExisting<Result>(claimResult.outcome, signal, () =>
+        stoppedWaiting(capability.name, principalId, idempotencyKey, inputFingerprint),
+      );
     }
 
     const evidence: ExecutionEvidence = {
@@ -83,48 +85,23 @@ export async function executeCapability<Input, Result>(
       inputFingerprint,
     };
 
-    if (signal.aborted) {
-      return await settle(
-        dependencies.store,
-        cancelled(capability.name, principalId, idempotencyKey, evidence),
-      );
-    }
-
-    const authorization = await guarded(() => definition.authorize({ principalId, input }));
-    if (!authorization.ok) {
-      return await settle(dependencies.store, denied(evidence, authorization.error));
-    }
-    if (authorization.value === false) {
-      return await settle(
-        dependencies.store,
-        denied(evidence, new Error("Authorization denied the request.")),
-      );
-    }
-
-    if (signal.aborted) {
-      return await settle(
-        dependencies.store,
-        cancelled(capability.name, principalId, idempotencyKey, evidence),
-      );
-    }
-
-    if (definition.approval?.({ principalId, input }) === true) {
-      const decision = await resolveApproval(dependencies.approve, {
-        capability: capability.name,
-        principalId,
+    // Everything before `execute` is wrapped so an unexpected internal error
+    // (a throwing getter on an approval decision, a malformed store
+    // result) still settles the claim instead of leaving every later
+    // duplicate waiting on it. Nothing has run yet, so this is a plain
+    // `failed`.
+    let early: ExecutionResult<never> | undefined;
+    try {
+      early = await beforeExecute(dependencies, definition, {
+        signal,
+        evidence,
         input,
-        idempotencyKey,
       });
-      if (!decision.approved) {
-        return await settle(dependencies.store, rejected(evidence, decision.error));
-      }
+    } catch (error) {
+      early = await settle(dependencies.store, failedBeforeExecute(evidence, error));
     }
-
-    if (signal.aborted) {
-      return await settle(
-        dependencies.store,
-        cancelled(capability.name, principalId, idempotencyKey, evidence),
-      );
+    if (early !== undefined) {
+      return early;
     }
 
     // From this line on, an external side effect may have started. Kaji
@@ -135,6 +112,132 @@ export async function executeCapability<Input, Result>(
     return await settle(dependencies.store, outcome);
   } finally {
     cleanup();
+  }
+}
+
+/**
+ * Runs the checks that sit between claiming and `execute`: cancellation,
+ * authorization, and approval. Returns the settled terminal result when one
+ * of them stops the request, or `undefined` when `execute` may run.
+ */
+async function beforeExecute<Input, Result>(
+  dependencies: ExecuteDependencies,
+  definition: CapabilityDefinition<StandardSchemaV1<unknown, Input>, Result>,
+  state: { signal: AbortSignal; evidence: ExecutionEvidence; input: Input },
+): Promise<ExecutionResult<never> | undefined> {
+  const { signal, evidence, input } = state;
+  const { principalId } = evidence;
+  const cancelNow = () =>
+    settle(
+      dependencies.store,
+      cancelled(evidence.capability, principalId, evidence.idempotencyKey, evidence),
+    );
+
+  if (signal.aborted) {
+    return await cancelNow();
+  }
+
+  const authorization = await guarded(() => definition.authorize({ principalId, input }));
+  if (!authorization.ok) {
+    return await settle(dependencies.store, denied(evidence, authorization.error));
+  }
+  // Fail closed: only an explicit `true` authorizes. `false`, and any
+  // other value a caller outside the type system could return (such as
+  // `undefined` from a forgotten `return`), denies.
+  if (authorization.value !== true) {
+    const message =
+      authorization.value === false
+        ? "Authorization denied the request."
+        : "authorize() must return true or false; treating the result as a denial.";
+    return await settle(dependencies.store, denied(evidence, new Error(message)));
+  }
+
+  if (signal.aborted) {
+    return await cancelNow();
+  }
+
+  // The policy is synchronous by contract, so it is called without
+  // `await`: a thenable result must not be resolved into an answer.
+  let needsApproval = false;
+  if (typeof definition.approval === "function") {
+    try {
+      needsApproval = requiresApproval(definition.approval({ principalId, input }));
+    } catch (error) {
+      // A policy that cannot answer cannot waive approval.
+      return await settle(dependencies.store, rejected(evidence, error));
+    }
+  }
+  if (needsApproval) {
+    const decision = await resolveApproval(dependencies.approve, {
+      capability: evidence.capability,
+      principalId,
+      input,
+      idempotencyKey: evidence.idempotencyKey,
+    });
+    if (!decision.approved) {
+      return await settle(dependencies.store, rejected(evidence, decision.error));
+    }
+  }
+
+  if (signal.aborted) {
+    return await cancelNow();
+  }
+
+  return undefined;
+}
+
+/**
+ * Fail closed: approval is skipped only when the policy returns exactly
+ * `false`. A policy is synchronous, so a thenable (an `async` policy) is not
+ * an answer; it requires approval, and its eventual rejection is absorbed
+ * so it cannot surface as an unhandled rejection.
+ */
+function requiresApproval(value: unknown): boolean {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as PromiseLike<unknown>).then === "function"
+  ) {
+    (value as PromiseLike<unknown>).then(undefined, () => {});
+  }
+  return value !== false;
+}
+
+/**
+ * Waits for the outcome of a request another caller claimed, but stops
+ * waiting when this call's signal aborts. An outcome that has already
+ * settled always wins over an abort.
+ *
+ * Giving up is `unknown`, never `cancelled`: the original request is still
+ * running (or finished) and may commit its side effect, so this caller
+ * cannot claim that nothing happened. Nothing is recorded, because the
+ * claim belongs to the other caller.
+ */
+const ABORTED = Symbol("aborted");
+
+async function awaitExisting<Result>(
+  outcome: Promise<unknown>,
+  signal: AbortSignal,
+  onAbort: () => ExecutionResult<never>,
+): Promise<ExecutionResult<Result>> {
+  let listener: (() => void) | undefined;
+  const aborted = new Promise<typeof ABORTED>((resolve) => {
+    if (signal.aborted) {
+      resolve(ABORTED);
+      return;
+    }
+    listener = () => resolve(ABORTED);
+    signal.addEventListener("abort", listener, { once: true });
+  });
+  try {
+    // `outcome` is listed first so that, if both are already settled, the
+    // real result is returned.
+    const winner = await Promise.race([outcome, aborted]);
+    return winner === ABORTED ? onAbort() : (winner as ExecutionResult<Result>);
+  } finally {
+    if (listener !== undefined) {
+      signal.removeEventListener("abort", listener);
+    }
   }
 }
 
@@ -153,8 +256,15 @@ async function runCapability<Input, Result>(
     // the error surfaced (docs/api.md). `KnownFailure` is the one explicit
     // exception — application code asserting no side effect committed —
     // and settles `failed` instead.
-    if (cause instanceof KnownFailure) {
-      return { status: "failed", error: cause.cause, evidence };
+    // `instanceof` can itself throw (for example on a hostile Proxy), and
+    // `execute` has already run by this point, so any failure to classify
+    // the error must still settle `unknown`.
+    try {
+      if (cause instanceof KnownFailure) {
+        return { status: "failed", error: cause.cause, evidence };
+      }
+    } catch {
+      // fall through
     }
     return { status: "unknown", error: cause, evidence };
   }
@@ -198,6 +308,31 @@ async function guarded<Value>(
   } catch (error) {
     return { ok: false, error };
   }
+}
+
+function failedBeforeExecute(evidence: ExecutionEvidence, cause: unknown): ExecutionResult<never> {
+  return {
+    status: "failed",
+    error: new Error("Kaji hit an internal error before running the action. Nothing ran.", {
+      cause,
+    }),
+    evidence,
+  };
+}
+
+function stoppedWaiting(
+  capability: string,
+  principalId: string,
+  idempotencyKey: string,
+  inputFingerprint: string,
+): ExecutionResult<never> {
+  return {
+    status: "unknown",
+    error: new Error(
+      "Stopped waiting for an identical request that is already in progress. It may still complete; retry with the same idempotencyKey to read its result.",
+    ),
+    evidence: { executionId: "", capability, principalId, idempotencyKey, inputFingerprint },
+  };
 }
 
 function denied(evidence: ExecutionEvidence, error: unknown): ExecutionResult<never> {

@@ -67,6 +67,14 @@ export function capability<Schema extends StandardSchemaV1, Result>(
     throw new Error("capability() requires an authorize function.");
   }
 
+  if (
+    definition.approval !== undefined &&
+    definition.approval !== null &&
+    typeof definition.approval !== "function"
+  ) {
+    throw new Error("capability() approval must be a function when provided.");
+  }
+
   // Minimal structural check only: the schema must look like Standard
   // Schema V1. The protocol requires only a `~standard` property — the
   // holder itself may be an object or a callable (ArkType's Type is a

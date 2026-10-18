@@ -32,7 +32,7 @@ export type ApproveHandler = (
 export async function resolveApproval(
   approve: ApproveHandler | undefined,
   request: ApprovalRequest,
-): Promise<{ approved: true; evidence?: unknown } | { approved: false; error: unknown }> {
+): Promise<{ approved: true } | { approved: false; error: unknown }> {
   if (approve === undefined) {
     return {
       approved: false,
@@ -40,23 +40,27 @@ export async function resolveApproval(
     };
   }
 
-  let decision: ApprovalDecision;
+  // Read `approved` exactly once, inside the guard: a getter or Proxy must
+  // not be able to answer differently to the type check and the decision,
+  // or throw outside the guard.
   try {
-    decision = await approve(request);
+    const decision: unknown = await approve(request);
+    if (typeof decision !== "object" || decision === null) {
+      return { approved: false, error: invalidDecision() };
+    }
+    const approved = (decision as { approved?: unknown }).approved;
+    if (approved !== true && approved !== false) {
+      return { approved: false, error: invalidDecision() };
+    }
+    if (approved === false) {
+      return { approved: false, error: new Error("Approval was not granted.") };
+    }
+    return { approved: true };
   } catch (cause) {
     return { approved: false, error: cause };
   }
+}
 
-  if (typeof decision !== "object" || decision === null || typeof decision.approved !== "boolean") {
-    return {
-      approved: false,
-      error: new Error("approve() returned an invalid decision; expected { approved: boolean }."),
-    };
-  }
-
-  if (!decision.approved) {
-    return { approved: false, error: new Error("Approval was not granted.") };
-  }
-
-  return { approved: true, evidence: decision.evidence };
+function invalidDecision(): Error {
+  return new Error("approve() returned an invalid decision; expected { approved: boolean }.");
 }

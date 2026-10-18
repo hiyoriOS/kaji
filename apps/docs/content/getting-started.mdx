@@ -17,7 +17,7 @@ import InstallTabs from "../src/components/content/install-tabs.astro";
 
 Kaji validates input with any [Standard Schema](https://standardschema.dev) library, including Zod, Valibot, and ArkType. This guide uses Zod.
 
-## Define a capability
+## Define
 
 A capability is one action your app can perform, with its input, permission check, and the function that does the work.
 
@@ -39,7 +39,7 @@ const refundPayment = capability({
 });
 ```
 
-## Create a Kaji instance
+## Create
 
 ```ts
 import { createKaji, memoryStore } from "@hiyorios/kaji";
@@ -49,7 +49,7 @@ const kaji = createKaji({ store: memoryStore() });
 
 `memoryStore()` keeps records in memory for one process. Use it for development and tests. In production, use a store that saves to a database (see [Stores](/docs/concepts/stores)).
 
-## Run it
+## Run
 
 ```ts
 const outcome = await kaji.execute(refundPayment, {
@@ -63,7 +63,7 @@ You supply `principalId` (who is asking) and `idempotencyKey` (a unique ID for t
 
 If the input fails validation, `kaji.execute()` rejects with an `InvalidInputError`.
 
-## Handle the result
+## Handle
 
 ```ts
 switch (outcome.status) {
@@ -86,30 +86,20 @@ switch (outcome.status) {
 
 See [Outcomes](/docs/concepts/outcomes) for what each status means.
 
-## Add approval
+## Approve
 
-Add an `approval` function to say which requests need a person's sign-off, and an `approve` function to ask for it.
+To require a person's sign-off for some requests, add `approval` to the capability and `approve` to `createKaji()`.
 
 ```ts
 const refundPayment = capability({
-  name: "payments.refund",
-  input: RefundInput,
-  authorize: ({ principalId, input }) => canRefund(principalId, input),
+  // name, input, authorize, and execute as above
   approval: ({ input }) => input.amount >= 1_000,
-  execute: refundThroughProvider,
 });
 
 const kaji = createKaji({
-  store,
+  store: memoryStore(),
   approve: async (request) => approvalService.request(request),
 });
 ```
 
-If approval is not given, the action does not run. See [Capabilities](/docs/concepts/capability) for details.
-
-## Next
-
-- [Capabilities](/docs/concepts/capability)
-- [Idempotency](/docs/concepts/idempotency)
-- [Stores](/docs/concepts/stores)
-- [Refund example](/docs/reference/refund-example)
+`approval` returns `true` when a request needs approval. `approve` asks your approval system and returns `{ approved: true }` to let the action run. If approval is not given, the action does not run and Kaji returns `rejected`. See [Capabilities](/docs/concepts/capability#approval) for details.

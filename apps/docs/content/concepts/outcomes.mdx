@@ -19,25 +19,26 @@ type ExecutionResult<Result> =
 ## Statuses
 
 - **`succeeded`**: the action ran and returned `result`. Use the result.
-- **`denied`**: `authorize` returned `false` or threw. The action did not run. Show a permission error.
+- **`denied`**: `authorize` did not return `true`, or threw. The action did not run. Show a permission error.
 - **`rejected`**: approval was required and not given. The action did not run. Ask for approval or show an error.
-- **`failed`**: a definite failure, either a reused key with different input or a `knownFailure()`. Handle the error, and retry only if it is safe.
-- **`cancelled`**: cancelled before the action started. Nothing ran, so you can start a new request.
+- **`failed`**: a definite failure, either a reused key with different input, a `knownFailure()`, or an unexpected internal error before the action started. Handle the error, and retry only if it is safe.
+- **`cancelled`**: cancelled before the action started. Nothing ran. If the cancellation came before Kaji claimed the request, nothing is saved and you can retry with the same `idempotencyKey`. If it came after, Kaji saves `cancelled`, and the same key returns it again: use a new key.
 - **`unknown`**: the action started but Kaji cannot tell whether it finished. Check the provider before retrying.
 
 `failed` does not say whether a retry would work. That depends on your application.
 
-## `unknown`
+## Unknown
 
 You get `unknown` when:
 
 - `execute` throws or rejects after it starts, because the side effect may already have happened.
 - The request is aborted and `execute` then rejects.
 - Kaji cannot save the final result to the store.
+- An identical request was already in progress, and this call stopped waiting for it (its signal aborted or `timeoutMs` elapsed). The original may still complete. Retry with the same key to read its result.
 
-Do not retry blindly, and do not treat `unknown` as `failed`. Use `outcome.evidence` and your provider's records to find out what happened. Sending the same request again returns the saved `unknown` and does not run the action again. Start a new request, with a new `idempotencyKey`, only after you know it is safe.
+Do not retry blindly, and do not treat `unknown` as `failed`. Use `outcome.evidence` and your provider's records to find out what happened. Sending the same request again returns the saved `unknown` and does not run the action again. (A call that stopped waiting is different: nothing was saved for it, and retrying returns the original's real result once it finishes.) Start a new request, with a new `idempotencyKey`, only after you know it is safe.
 
-## `knownFailure()`
+## Known failures
 
 Throw `knownFailure(cause)` from `execute` when you know the action did not take effect, for example when the provider rejected the request before doing anything. Kaji returns `failed`.
 
@@ -57,13 +58,15 @@ execute: async (input, context) => {
 
 Kaji never guesses this from an error type or message.
 
-## Errors instead of a status
+## Request errors
 
-`kaji.execute()` rejects, with no status, when the request cannot start at all: an empty `principalId` or `idempotencyKey`, input that fails validation (`InvalidInputError`), or a store that fails to claim the request (`KajiConfigurationError`).
+`kaji.execute()` rejects, with no status, when the request cannot start at all: an empty `principalId` or `idempotencyKey`, input that fails validation (`InvalidInputError`), input Kaji cannot fingerprint (`UnfingerprintableValueError`), or a store that fails to claim the request (`KajiConfigurationError`).
 
-## Handling every status
+## Handling
 
 ```ts
+const outcome = await kaji.execute(refundPayment, request);
+
 switch (outcome.status) {
   case "succeeded":
     return showReceipt(outcome.result);

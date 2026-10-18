@@ -53,7 +53,7 @@ if (outcome.status === "succeeded") {
 | Status      | Meaning                                                                                       |
 | ----------- | --------------------------------------------------------------------------------------------- |
 | `succeeded` | The action ran and returned a result.                                                         |
-| `denied`    | `authorize` returned `false` or threw. The action did not run.                                |
+| `denied`    | `authorize` did not return `true`, or threw. The action did not run.                             |
 | `rejected`  | Approval was required and not given. The action did not run.                                  |
 | `failed`    | The request definitely failed: a reused key with different input, or a `knownFailure()` you threw. |
 | `cancelled` | The request was cancelled before the action started.                                          |

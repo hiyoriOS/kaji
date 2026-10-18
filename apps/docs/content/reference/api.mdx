@@ -128,7 +128,7 @@ type ExecutionEvidence = {
 };
 ```
 
-The IDs Kaji knows about a request, useful for looking it up later. If a request is cancelled before Kaji claims it, `executionId` and `inputFingerprint` are empty.
+The IDs Kaji knows about a request, useful for looking it up later. If a request is cancelled before Kaji claims it, `executionId` and `inputFingerprint` are empty. If a call stops waiting for an identical request already in progress, `executionId` is empty.
 
 ## `InvalidInputError`
 

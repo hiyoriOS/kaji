@@ -1,6 +1,6 @@
 {
   "name": "@hiyorios/kaji",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Run application actions like refunding a payment safely when an agent, automation, or API asks for them.",
   "homepage": "https://kaji.build",
   "bugs": {

@@ -19,12 +19,22 @@ Kaji treats the capability name, `principalId`, and `idempotencyKey` together as
 - **Same identity and same input:** Kaji returns the saved result, or waits for the one in progress, and does not run `execute` again. This includes a saved `unknown`.
 - **Same identity and different input:** Kaji returns `failed` and does not run `execute`.
 - **A new action:** use a new key.
+- **After `cancelled`:** if the request was cancelled after Kaji claimed it, Kaji saves `cancelled` and the same key returns it again, so use a new key. If it was cancelled before the claim, nothing is saved and the same key works.
 
-## How far this goes
+Create the key once per intended action, for example when the user clicks "Refund", and reuse it on every retry. A new random key per attempt defeats the protection, because Kaji sees each attempt as a new action.
 
-Kaji prevents duplicates through the store you give it. `memoryStore()` only sees requests in its own process and forgets everything on restart. A store that saves to a shared database can cover many processes and restarts, if it claims requests atomically (see [Stores](/docs/concepts/stores)).
+## Input comparison
 
-Kaji cannot control what an outside service does inside `execute`. If your provider supports idempotency keys, pass it yours:
+Kaji compares the validated input by value. Object key order does not matter, and an `undefined` property counts as absent. These are supported: strings, numbers, booleans, `null`, `bigint`, `Date`, arrays, typed arrays, plain objects, and class instances whose data is in enumerable properties (such as decimal types).
+
+Values that cannot be compared make `kaji.execute()` reject with `UnfingerprintableValueError`: `NaN` and `Infinity`, `undefined` outside an object property, invalid dates, circular references, built-ins such as `Map`, `Set`, `RegExp`, `URL`, `File`, and `Blob`, and class instances that keep their data in `#private` fields. Convert them to plain data in your schema, for example with a transform.
+
+## Limits
+
+Idempotency protects you only as far as the store and your provider allow.
+
+- **Store.** Kaji checks for repeats through the store you pass to `createKaji()`. `memoryStore()` sees only its own process and forgets everything on restart. To cover many processes and restarts, use a shared database store that claims requests atomically (see [Stores](/docs/concepts/stores)).
+- **Provider.** Kaji cannot control what an outside service does inside `execute`. If the provider supports idempotency keys, pass it yours:
 
 ```ts
 execute: (input, context) =>

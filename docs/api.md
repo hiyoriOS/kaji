@@ -73,9 +73,9 @@ export function capability<Schema extends StandardSchemaV1, Result>(definition: 
 
 `authorize`, `approval`, and `execute` receive the schema's validated *output* type, inferred as `SchemaOutput<Schema>` from the schema's `types` field. A transforming schema's output — not its input type — flows through the capability. A schema that does not declare `types` still validates correctly at runtime; only compile-time inference is unavailable.
 
-`authorize` receives validated input and returns whether the principal may execute the capability. Returning `false` denies execution. Throwing fails the execution before a side effect.
+`authorize` receives validated input and returns whether the principal may execute the capability. Only returning `true` allows execution; `false` and any other value deny it. Throwing fails the execution before a side effect.
 
-`approval` is optional. Returning `true` requires approval for that request. Returning `false` does not. Approval policy is capability-specific, while the executor obtains the approval decision.
+`approval` is optional. Returning `false` does not require approval for that request; any other value, including a Promise from an `async` policy, requires it. A thrown error settles `rejected`. Approval policy is capability-specific, while the executor obtains the approval decision.
 
 `execute` is ordinary application code. It receives validated input and the per-execution context. It must use the supplied `AbortSignal` cooperatively when the underlying operation supports it.
 
@@ -107,7 +107,7 @@ export function createKaji(options: {
 };
 ```
 
-`timeoutMs` aborts the execution's effective `AbortSignal` after the configured duration. Cancellation is cooperative. Kaji continues awaiting `execute()` until it settles, so capability code and downstream APIs must observe `context.signal` for the timeout to interrupt work. The timeout does not roll back a side effect or bound the wall-clock duration of `execute()`.
+`timeoutMs` must be a number greater than 0 and at most 2,147,483,647; `createKaji()` throws `KajiConfigurationError` otherwise. `timeoutMs` aborts the execution's effective `AbortSignal` after the configured duration. Cancellation is cooperative. Kaji continues awaiting `execute()` until it settles, so capability code and downstream APIs must observe `context.signal` for the timeout to interrupt work. The timeout does not roll back a side effect or bound the wall-clock duration of `execute()`.
 
 ## Execution request and context
 
@@ -170,9 +170,9 @@ export type ExecutionEvidence = {
 - `succeeded` means `execute` returned successfully.
 - `denied` means authorization did not allow the action.
 - `rejected` means required approval was unavailable or not granted.
-- `failed` means Kaji has a definitive failure for the governed request. Current cases include an idempotency conflict and an explicit `knownFailure()` from capability execution.
+- `failed` means Kaji has a definitive failure for the governed request. Current cases include an idempotency conflict, an explicit `knownFailure()` from capability execution, and an unexpected internal error after the claim but before `execute` started (nothing ran).
 - `cancelled` means cancellation prevented side-effect execution.
-- `unknown` means Kaji cannot confirm the intended terminal result. A side effect can already have committed. If `execute` rejects after a timeout or cancellation, the result is `unknown`. Callers must not blindly retry `unknown`.
+- `unknown` means Kaji cannot confirm the intended terminal result. A side effect can already have committed. If `execute` rejects after a timeout or cancellation, the result is `unknown`. A call that stops waiting for an identical in-progress request, because its signal aborted or `timeoutMs` elapsed, also returns `unknown`. Callers must not blindly retry `unknown`.
 
 `failed` does not state whether the error is retryable, permanent, or part of a specific error category. Application policy must make those decisions.
 
@@ -203,7 +203,7 @@ Kaji never infers this classification from an error class, message, or status co
 
 Every other thrown or rejected `execute` call settles `unknown`.
 
-A repeated execution with the same capability, principal ID, idempotency key, and input fingerprint returns the recorded result. Reuse of that capability, principal ID, and idempotency key with a different validated input fingerprint returns a conflict as a `failed` result. The same idempotency key can identify separate executions under a different capability or principal. A concurrent duplicate waits for or receives the same recorded outcome. It must not run `execute` again.
+A repeated execution with the same capability, principal ID, idempotency key, and input fingerprint returns the recorded result. Reuse of that capability, principal ID, and idempotency key with a different validated input fingerprint returns a conflict as a `failed` result. The same idempotency key can identify separate executions under a different capability or principal. A concurrent duplicate waits for or receives the same recorded outcome, and stops waiting with `unknown` if its own signal aborts or `timeoutMs` elapses, because the original may still complete. It must not run `execute` again.
 
 ## Execution store
 
