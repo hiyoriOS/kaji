@@ -1,7 +1,7 @@
 {
   "name": "@hiyorios/kaji",
   "version": "0.3.1",
-  "description": "An embedded execution layer for application actions requested by agents, automations, and other callers.",
+  "description": "Run application actions like refunding a payment safely when an agent, automation, or API asks for them.",
   "homepage": "https://kaji.build",
   "bugs": {
     "url": "https://github.com/hiyoriOS/kaji/issues"

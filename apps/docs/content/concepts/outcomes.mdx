@@ -1,85 +1,46 @@
 ---
 title: Outcomes
-description: Handle Kaji's six public result statuses without unsafe retries.
+description: What each result status means and how to handle it.
 ---
 
-`kaji.execute()` resolves governed outcomes as `ExecutionResult` values.
+`kaji.execute()` resolves with an `ExecutionResult`:
 
 ```ts
-export type ExecutionResult<Result> =
+type ExecutionResult<Result> =
+  | { status: "succeeded"; result: Result; evidence: ExecutionEvidence }
   | {
-      readonly status: "succeeded";
-      readonly result: Result;
-      readonly evidence: ExecutionEvidence;
-    }
-  | {
-      readonly status: "denied" | "rejected" | "failed" | "cancelled";
-      readonly error: unknown;
-      readonly evidence: ExecutionEvidence;
-    }
-  | {
-      readonly status: "unknown";
-      readonly error: unknown;
-      readonly evidence: ExecutionEvidence;
+      status: "denied" | "rejected" | "failed" | "cancelled" | "unknown";
+      error: unknown;
+      evidence: ExecutionEvidence;
     };
 ```
 
-`kaji.execute()` rejects instead of resolving to one of these six statuses when it cannot establish the execution boundary at all — invalid `principalId` or `idempotencyKey`, invalid capability input (`InvalidInputError`), or a `store.claim()` failure. No claim exists yet in these cases, so there is no result to classify.
+## Statuses
 
-## `succeeded`
+| Status      | What happened                                                                 | What to do                                  |
+| ----------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
+| `succeeded` | The action ran and returned `result`.                                         | Use the result.                             |
+| `denied`    | `authorize` returned `false` or threw. The action did not run.                | Show a permission error.                    |
+| `rejected`  | Approval was required and not given. The action did not run.                  | Ask for approval or show an error.          |
+| `failed`    | A definite failure: a reused key with different input, or a `knownFailure()`. | Handle the error. Retry only if it is safe. |
+| `cancelled` | Cancelled before the action started.                                          | Nothing ran. You can start a new request.   |
+| `unknown`   | The action started but Kaji cannot tell whether it finished.                  | Check the provider before retrying.         |
 
-The capability returned a result, and the store recorded that result.
-
-An identical retry returns the recorded result. It does not call the capability again.
-
-## `denied`
-
-Authorization returned `false` or threw. Kaji did not call the capability.
-
-The application owns the authorization policy and the meaning of the denial.
-
-## `rejected`
-
-The request required approval, but Kaji did not receive a valid approval.
-
-Missing handlers, invalid decisions, explicit rejection, and handler errors all produce this status. Kaji did not call the capability.
-
-## `failed`
-
-Kaji has a definitive failure for the governed request.
-
-Current cases include:
-
-- the same execution identity was reused with different validated input
-- capability code threw `knownFailure(cause)` after it proved that no side effect committed
-
-`failed` is not a synonym for `knownFailure()`. The public status also covers finalized failures outside capability execution.
-
-`failed` does not state whether an error is retryable, permanent, or part of a specific error category. Application policy must make those decisions.
-
-## `cancelled`
-
-Cancellation stopped the request before capability execution began.
-
-When cancellation happens before the store claim, the evidence contains no execution ID or input fingerprint. No execution record exists yet.
-
-When cancellation happens after the claim but before execution, Kaji records `cancelled` when the store remains available.
+`failed` does not say whether a retry would work. That depends on your application.
 
 ## `unknown`
 
-Kaji could not confirm the intended final result.
+You get `unknown` when:
 
-A normal thrown or rejected capability execution produces `unknown`. The side effect can commit before the error reaches Kaji.
+- `execute` throws or rejects after it starts, because the side effect may already have happened.
+- The request is aborted and `execute` then rejects.
+- Kaji cannot save the final result to the store.
 
-A timeout or cancellation after capability execution begins also preserves ambiguity when execution rejects.
-
-A failure from `store.record()` converts the intended terminal result to `unknown`. In this case, Kaji could not confirm settlement.
-
-Do not blindly retry `unknown`. Reconcile with the application or external provider first.
+Do not retry blindly, and do not treat `unknown` as `failed`. Use `outcome.evidence` and your provider's records to find out what happened. Sending the same request again returns the saved `unknown` and does not run the action again. Start a new request, with a new `idempotencyKey`, only after you know it is safe.
 
 ## `knownFailure()`
 
-Use `knownFailure(cause)` only inside capability execution and only when application code knows that no side effect committed.
+Throw `knownFailure(cause)` from `execute` when you know the action did not take effect, for example when the provider rejected the request before doing anything. Kaji returns `failed`.
 
 ```ts
 execute: async (input, context) => {
@@ -95,25 +56,27 @@ execute: async (input, context) => {
 },
 ```
 
-Kaji never infers known failure from an error class, message, or status code.
+Kaji never guesses this from an error type or message.
 
-## Handle every status
+## Errors instead of a status
+
+`kaji.execute()` rejects, with no status, when the request cannot start at all: an empty `principalId` or `idempotencyKey`, input that fails validation (`InvalidInputError`), or a store that fails to claim the request (`KajiConfigurationError`).
+
+## Handling every status
 
 ```ts
 switch (outcome.status) {
   case "succeeded":
     return showReceipt(outcome.result);
   case "denied":
-    return showAuthorizationError(outcome.error);
+    return showPermissionError(outcome.error);
   case "rejected":
     return showApprovalError(outcome.error);
   case "failed":
-    return handleDefinitiveFailure(outcome.error);
+    return handleFailure(outcome.error);
   case "cancelled":
-    return showCancellation(outcome.error);
+    return showCancelled(outcome.error);
   case "unknown":
-    return reconcile(outcome.evidence);
+    return checkWithProvider(outcome.evidence);
 }
 ```
-
-Do not collapse `unknown` into `failed`. The distinction prevents an unsafe retry after an ambiguous side effect.

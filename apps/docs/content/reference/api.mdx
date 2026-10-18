@@ -1,9 +1,7 @@
 ---
 title: API reference
-description: Review every public function and type exported by `@hiyorios/kaji`.
+description: Every function and type exported by `@hiyorios/kaji`.
 ---
-
-`@hiyorios/kaji` has one package entry point.
 
 ```ts
 import {
@@ -25,7 +23,7 @@ import {
 
 ## `capability()`
 
-Defines one named application action.
+Defines one action. See [Capabilities](/docs/concepts/capability).
 
 ```ts
 function capability<Schema extends StandardSchemaV1, Result>(definition: {
@@ -46,23 +44,11 @@ function capability<Schema extends StandardSchemaV1, Result>(definition: {
 }): Capability<SchemaOutput<Schema>, Result>;
 ```
 
-`input` is a [Standard Schema](https://standardschema.dev) V1 schema: Zod, Valibot, ArkType, or a hand-written object exposing a `~standard` property with `version: 1` and a `validate` function. `capability()` checks this shape at construction and throws if `input` does not conform; it never calls a schema's own methods and never runs validation at construction time. Kaji does not require a specific schema library.
-
-`authorize`, `approval`, and `execute` receive the schema's validated output, inferred as `SchemaOutput<Schema>` from the schema's `types` field. `StandardSchemaV1` and `SchemaOutput` are Kaji's internal names for this protocol; neither is exported from the package root, so a caller never imports them directly.
-
-## `Capability`
-
-```ts
-export type Capability<Output, Result> = {
-  readonly name: string;
-};
-```
-
-The generic parameters preserve the input and result types for `kaji.execute()`.
+`input` is a [Standard Schema](https://standardschema.dev) V1 schema. `capability()` throws right away if `name`, `authorize`, or `input` is missing or invalid. `StandardSchemaV1` and `SchemaOutput` are not exported, so you never import them.
 
 ## `createKaji()`
 
-Creates one executor with stable application configuration.
+Creates a Kaji instance. See [Stores](/docs/concepts/stores) and [Cancellation](/docs/concepts/cancellation).
 
 ```ts
 function createKaji(options: {
@@ -84,64 +70,51 @@ function createKaji(options: {
 };
 ```
 
-`timeoutMs` aborts the effective execution signal after the configured duration. Kaji still awaits `execute()` until it settles.
-
-The `approve` handler can return optional evidence. Kaji accepts this field but does not expose or persist it in `@hiyorios/kaji@0.3.1`.
-
 ## `ExecutionRequest`
 
 ```ts
-export type ExecutionRequest = {
+type ExecutionRequest = {
   readonly input: unknown;
-  readonly principalId: string;
-  readonly idempotencyKey: string;
+  readonly principalId: string; // non-empty
+  readonly idempotencyKey: string; // non-empty
   readonly signal?: AbortSignal;
 };
 ```
 
-The caller supplies every field. `principalId` and `idempotencyKey` must be non-empty strings.
-
 ## `ExecutionContext`
 
+Passed to `execute`.
+
 ```ts
-export type ExecutionContext = {
+type ExecutionContext = {
   readonly principalId: string;
   readonly idempotencyKey: string;
   readonly signal: AbortSignal;
 };
 ```
 
-Kaji passes this value to the capability `execute` function.
-
-The signal combines the caller signal with the optional timeout signal. Cancellation is cooperative.
-
 ## `ExecutionResult`
 
 ```ts
-export type ExecutionResult<Result> =
+type ExecutionResult<Result> =
   | {
       readonly status: "succeeded";
       readonly result: Result;
       readonly evidence: ExecutionEvidence;
     }
   | {
-      readonly status: "denied" | "rejected" | "failed" | "cancelled";
-      readonly error: unknown;
-      readonly evidence: ExecutionEvidence;
-    }
-  | {
-      readonly status: "unknown";
+      readonly status: "denied" | "rejected" | "failed" | "cancelled" | "unknown";
       readonly error: unknown;
       readonly evidence: ExecutionEvidence;
     };
 ```
 
-Read [Outcomes](/docs/concepts/outcomes) before you define retry behavior.
+See [Outcomes](/docs/concepts/outcomes).
 
 ## `ExecutionEvidence`
 
 ```ts
-export type ExecutionEvidence = {
+type ExecutionEvidence = {
   readonly executionId: string;
   readonly capability: string;
   readonly principalId: string;
@@ -150,11 +123,11 @@ export type ExecutionEvidence = {
 };
 ```
 
-This is minimal execution evidence. It is not a business audit record.
-
-A pre-claim `cancelled` result has empty `executionId` and `inputFingerprint` values because no claim exists.
+The IDs Kaji knows about a request, useful for looking it up later. If a request is cancelled before Kaji claims it, `executionId` and `inputFingerprint` are empty.
 
 ## `InvalidInputError`
+
+`kaji.execute()` rejects with this error when input fails validation. It is not exported. Check `error.name === "InvalidInputError"`.
 
 ```ts
 class InvalidInputError extends Error {
@@ -165,7 +138,7 @@ class InvalidInputError extends Error {
 }
 ```
 
-`kaji.execute()` rejects with this error when the capability's schema reports issues. It is not exported from the package root; identify it with `error.name === "InvalidInputError"`. Its `issues` property carries the schema's Standard Schema issues verbatim, before any claim, authorization, approval, or execution.
+`issues` holds the schema's own issues, unchanged.
 
 ## `knownFailure()`
 
@@ -173,54 +146,32 @@ class InvalidInputError extends Error {
 function knownFailure(cause: unknown): Error;
 ```
 
-Throw this value from capability execution only when application code proves that no side effect committed.
+Throw it from `execute` when you know the action did not take effect. Kaji returns `failed`.
 
-Kaji then returns `status: "failed"`. Other thrown or rejected capability executions return `status: "unknown"`.
+## Store types
 
-## `ExecutionClaim`
+See [Stores](/docs/concepts/stores) for how these fit together.
 
 ```ts
-export type ExecutionClaim = {
+type ExecutionStore = {
+  claim(claim: ExecutionClaim): Promise<ClaimResult>;
+  record(execution: StoredExecution): Promise<void>;
+};
+
+type ExecutionClaim = {
   readonly capability: string;
   readonly principalId: string;
   readonly idempotencyKey: string;
   readonly inputFingerprint: string;
 };
-```
 
-The execution identity is the capability, principal ID, and idempotency key. The fingerprint detects different validated input under that identity.
-
-## `ClaimResult`
-
-```ts
-export type ClaimResult =
+type ClaimResult =
   | { readonly status: "claimed"; readonly executionId: string }
   | { readonly status: "existing"; readonly outcome: Promise<StoredExecution> }
   | { readonly status: "conflict"; readonly executionId: string };
+
+type StoredExecution = ExecutionResult<unknown>;
 ```
-
-`existing` covers active and settled claims. The promise resolves when the store records the outcome.
-
-## `StoredExecution`
-
-```ts
-export type StoredExecution = ExecutionResult<unknown>;
-```
-
-A store records one terminal result for each claimed execution.
-
-## `ExecutionStore`
-
-```ts
-export type ExecutionStore = {
-  claim(claim: ExecutionClaim): Promise<ClaimResult>;
-  record(execution: StoredExecution): Promise<void>;
-};
-```
-
-`claim()` must coordinate concurrent callers for the same execution identity.
-
-`record()` must preserve the terminal outcome. Read [Stores](/docs/concepts/stores) for the complete contract.
 
 ## `memoryStore()`
 
@@ -228,24 +179,12 @@ export type ExecutionStore = {
 function memoryStore(): ExecutionStore;
 ```
 
-Returns a process-local reference store. It has no persistence, cross-process visibility, or restart durability.
+An in-memory store for development and tests. It works in one process and keeps nothing after restart.
 
-## Public export boundary
+## `Capability`
 
 ```ts
-export { capability, createKaji, knownFailure, memoryStore };
-
-export type {
-  Capability,
-  ClaimResult,
-  ExecutionClaim,
-  ExecutionContext,
-  ExecutionEvidence,
-  ExecutionRequest,
-  ExecutionResult,
-  ExecutionStore,
-  StoredExecution,
-};
+type Capability<Output, Result> = { readonly name: string };
 ```
 
-These are the only values and types the package root exports. `StandardSchemaV1`, `SchemaOutput`, and `InvalidInputError` are documented above because they describe observable behavior — the shape `input` must satisfy and the error `kaji.execute()` can reject with — but none of the three is exported. A caller identifies `InvalidInputError` by `error.name`, not by an imported class, and writes an ordinary Standard Schema V1 schema without importing Kaji's internal types. The package does not export framework adapters or other implementation internals.
+The returned object only exposes `name`. The type parameters let `kaji.execute()` check your input and result types.

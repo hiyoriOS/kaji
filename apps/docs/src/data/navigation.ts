@@ -15,16 +15,12 @@ export const navigation: NavigationSection[] = [
     items: [
       { href: "/introduction", label: "Introduction" },
       { href: "/docs/getting-started", label: "Getting started" },
-      { href: "/docs/architecture", label: "Architecture" },
     ],
   },
   {
-    label: "Core concepts",
+    label: "Concepts",
     items: [
       { href: "/docs/concepts/capability", label: "Capabilities" },
-      { href: "/docs/concepts/authorization", label: "Authorization" },
-      { href: "/docs/concepts/executor", label: "Execution" },
-      { href: "/docs/concepts/approval", label: "Approval" },
       { href: "/docs/concepts/outcomes", label: "Outcomes" },
       { href: "/docs/concepts/idempotency", label: "Idempotency" },
       { href: "/docs/concepts/stores", label: "Stores" },
@@ -39,7 +35,7 @@ export const navigation: NavigationSection[] = [
     ],
   },
   {
-    label: "Operations",
+    label: "Help",
     items: [{ href: "/docs/troubleshooting", label: "Troubleshooting" }],
   },
 ];

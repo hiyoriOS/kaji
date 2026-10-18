@@ -1,87 +1,62 @@
 ---
 title: Stores
-description: Provide claim coordination and outcome storage for governed executions.
+description: Where Kaji records requests and results, and how to write your own store.
 ---
 
-Every Kaji executor requires an `ExecutionStore`.
-
-```ts
-export type ExecutionStore = {
-  claim(claim: ExecutionClaim): Promise<ClaimResult>;
-  record(execution: StoredExecution): Promise<void>;
-};
-```
-
-The store does not execute capabilities or decide authorization, approval, retries, or recovery.
-
-## Claim contract
-
-```ts
-export type ExecutionClaim = {
-  readonly capability: string;
-  readonly principalId: string;
-  readonly idempotencyKey: string;
-  readonly inputFingerprint: string;
-};
-```
-
-`claim()` returns one of three values:
-
-```ts
-export type ClaimResult =
-  | { readonly status: "claimed"; readonly executionId: string }
-  | { readonly status: "existing"; readonly outcome: Promise<StoredExecution> }
-  | { readonly status: "conflict"; readonly executionId: string };
-```
-
-- `claimed` allows one new governed execution.
-- `existing` returns the pending or recorded outcome for an identical claim.
-- `conflict` reports the same identity with a different validated input fingerprint.
-
-The claim must be atomic enough that concurrent identical callers produce exactly one `claimed` result.
-
-## Record contract
-
-`record()` stores one terminal `ExecutionResult` for the claimed execution.
-
-A record must not overwrite an existing terminal outcome. In particular, a store must not replace `unknown` with another status through replay.
-
-When `record()` fails, Kaji returns `status: "unknown"` because it cannot confirm settlement.
-
-## `memoryStore()`
+Kaji needs a store to remember which requests it has seen and what happened. Pass one to `createKaji()`:
 
 ```ts
 const kaji = createKaji({ store: memoryStore() });
 ```
 
-`memoryStore()` implements the store contract for development, tests, and examples.
+## `memoryStore()`
 
-It has these limits:
+Keeps records in memory. It is meant for development, tests, and examples. It only works inside one process, and it loses everything when the process exits.
 
-- process-local claims
-- no cross-process visibility
-- no persistence
-- no restart durability
+## Writing a store
 
-It uses an in-process map and `crypto.randomUUID()` for execution IDs.
+For production, write a store backed by a database. A store has two methods:
 
-## Production stores
+```ts
+type ExecutionStore = {
+  claim(claim: ExecutionClaim): Promise<ClaimResult>;
+  record(execution: StoredExecution): Promise<void>;
+};
+```
 
-Kaji v0 does not include a database store, distributed lock, event stream, retry system, or recovery worker.
+`claim()` is called for every request, right after input validation:
 
-A production store must define the guarantee that your deployment needs. Review:
+```ts
+type ExecutionClaim = {
+  readonly capability: string;
+  readonly principalId: string;
+  readonly idempotencyKey: string;
+  readonly inputFingerprint: string;
+};
 
-- atomic claims for one execution identity
-- visibility across application processes
-- outcome durability across restarts
-- failure behavior for claim and record operations
-- retention and cleanup policy
-- access control for execution evidence
+type ClaimResult =
+  | { status: "claimed"; executionId: string }
+  | { status: "existing"; outcome: Promise<StoredExecution> }
+  | { status: "conflict"; executionId: string };
+```
 
-A store can keep additional internal data. The public contract requires only the claim and terminal result shapes.
+- `claimed`: a new request. Kaji goes ahead.
+- `existing`: the same request was already made. Return its saved result, or a promise for it if it is still running.
+- `conflict`: the same capability, `principalId`, and `idempotencyKey` came with different input (its `inputFingerprint`, a hash of the validated input, differs).
 
-## Store failures
+If two callers send the same new request at once, exactly one must get `claimed`. Use a unique constraint or a transaction.
 
-A claim failure rejects with `KajiConfigurationError`. Kaji has not established an execution record at that point.
+`record()` saves the final result of a claimed request. It must never overwrite a result that is already saved, in particular never replace `unknown` with something else.
 
-A record failure resolves as `status: "unknown"`. Capability execution can already have created a side effect.
+## Before going to production
+
+Check that your store:
+
+- claims atomically, so concurrent duplicates get one `claimed`
+- is shared by every process that runs the capability
+- keeps its records across restarts
+- has a plan for how long to keep records
+
+## When the store fails
+
+If `claim()` fails, `kaji.execute()` rejects with a `KajiConfigurationError` and nothing ran. If `record()` fails, you get `unknown`, because the action may already have run.

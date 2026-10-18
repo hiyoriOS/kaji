@@ -4,16 +4,14 @@ import Base from "@/layouts/base.astro";
 
 const headings = [
   { depth: 2, slug: "what-is-kaji", text: "What is Kaji?" },
-  { depth: 2, slug: "why-use-kaji", text: "Why use Kaji?" },
   { depth: 2, slug: "how-it-works", text: "How it works" },
-  { depth: 2, slug: "ownership", text: "Ownership" },
-  { depth: 2, slug: "what-kaji-is-not", text: "What Kaji is not" },
+  { depth: 2, slug: "what-you-provide", text: "What you provide" },
 ];
 ---
 
 <Base
   title="Introduction"
-  description="Kaji governs application actions requested by agents, automations, and other callers."
+  description="Kaji runs application actions safely when an agent, automation, or API caller asks for them."
   activeHref="/introduction"
   headings={headings}
 >
@@ -21,81 +19,50 @@ const headings = [
     <header>
       <h1>Introduction</h1>
       <p class="tagline">
-        Kaji is an embedded execution layer for application actions that can create real side
-        effects.
+        Kaji runs application actions, like refunding a payment, safely when something other than a
+        person clicking a button asks for them.
       </p>
     </header>
 
     <section>
       <h2 id="what-is-kaji">What is Kaji?</h2>
       <p>
-        Your application already contains functions such as <code>refundPayment()</code>, <code
+        Your app already has functions such as <code>refundPayment()</code>, <code
           >cancelBooking()</code
-        >, and <code>sendEmail()</code>.
+        >, and <code>sendEmail()</code>. When an agent, automation, or API caller can trigger them,
+        you need to check the input, check the caller is allowed, avoid running the same request
+        twice, and handle failures where you cannot tell what happened.
       </p>
       <p>
-        Kaji governs the point where an agent, automation, or direct caller requests one of these
-        actions.
+        Kaji does these checks in one place. It is a TypeScript library with no dependencies, and it
+        runs inside your app.
       </p>
-      <p>
-        Kaji is a TypeScript library with zero runtime dependencies. It runs inside your
-        application.
-      </p>
-    </section>
-
-    <section>
-      <h2 id="why-use-kaji">Why use Kaji?</h2>
-      <p>A state-changing action needs more than a function call.</p>
-      <p>
-        The application must validate input, identify the caller, enforce policy, coordinate
-        duplicates, and preserve ambiguous outcomes.
-      </p>
-      <p>Kaji provides one execution path for those controls.</p>
     </section>
 
     <section>
       <h2 id="how-it-works">How it works</h2>
       <ol>
-        <li>Define a capability with input validation, authorization, optional approval, and execution.</li>
-        <li>Create a Kaji executor with an <code>ExecutionStore</code>.</li>
+        <li>Define a capability: the input, the permission check, and the function that does the work.</li>
+        <li>Create a Kaji instance with a store.</li>
         <li>
-          Call <code>kaji.execute()</code> with input, <code>principalId</code>, and an idempotency key.
+          Call <code>kaji.execute()</code> with the input, a <code>principalId</code>, and an
+          <code>idempotencyKey</code>.
         </li>
-        <li>Kaji validates, claims, authorizes, obtains approval when required, and executes.</li>
         <li>
-          Kaji returns one of six statuses: <code>succeeded</code>, <code>denied</code>, <code
-            >rejected</code
-          >, <code>failed</code>, <code>cancelled</code>, or <code>unknown</code>.
+          Read the <code>status</code> of the result: <code>succeeded</code>, <code>denied</code>,
+          <code>rejected</code>, <code>failed</code>, <code>cancelled</code>, or
+          <code>unknown</code>.
         </li>
       </ol>
-      <p>
-        The configured store defines the coordination and durability scope. <code
-          >memoryStore()</code
-        > is process-local and non-durable.
-      </p>
     </section>
 
     <section>
-      <h2 id="ownership">Ownership</h2>
-      <p>Kaji owns execution order, boundary enforcement, result classification, and minimal evidence.</p>
+      <h2 id="what-you-provide">What you provide</h2>
       <p>
-        Your application owns identity, policy, approval systems, provider calls, production storage,
-        reconciliation, and business audit data.
+        Kaji does not log users in, decide who may do what, build approval screens, retry failed
+        work, or save data for production. You provide the user identity, the permission rules, the
+        approval step, and a store. Kaji calls them in the right order.
       </p>
-    </section>
-
-    <section>
-      <h2 id="what-kaji-is-not">What Kaji is not</h2>
-      <ul>
-        <li><strong>Not an agent framework.</strong> Kaji has no model provider or agent loop.</li>
-        <li><strong>Not a workflow engine.</strong> Kaji does not orchestrate multi-step work.</li>
-        <li><strong>Not an IAM system.</strong> The application supplies identity and policy.</li>
-        <li><strong>Not an approval product.</strong> The application supplies the approval interface and decision logic.</li>
-        <li><strong>Not a retry service.</strong> The application reconciles <code>unknown</code> outcomes.</li>
-        <li><strong>Not a database.</strong> Production storage comes from your <code>ExecutionStore</code>.</li>
-        <li><strong>Not a distributed lock service or event store.</strong> The configured <code>ExecutionStore</code> owns claim coordination and outcome persistence.</li>
-        <li><strong>Not a recovery worker.</strong> The application owns reconciliation after an <code>unknown</code> outcome.</li>
-      </ul>
     </section>
 
     <section class="quickstart-links">

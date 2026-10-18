@@ -1,9 +1,9 @@
 ---
 title: Idempotency
-description: Use execution identities and input fingerprints to prevent duplicate capability calls.
+description: Make sure the same request never runs twice.
 ---
 
-Every execution request includes a caller-supplied `idempotencyKey`.
+Every request needs an `idempotencyKey`: a unique ID for one intended action.
 
 ```ts
 await kaji.execute(refundPayment, {
@@ -13,53 +13,18 @@ await kaji.execute(refundPayment, {
 });
 ```
 
-## Execution identity
+Kaji treats the capability name, `principalId`, and `idempotencyKey` together as the identity of a request.
 
-Kaji identifies the intended operation with:
+- **Use one key per action.** Reuse a key only to retry the same action.
+- **Same identity and same input:** Kaji returns the saved result, or waits for the one in progress, and does not run `execute` again. This includes a saved `unknown`.
+- **Same identity and different input:** Kaji returns `failed` and does not run `execute`.
+- **A new action:** use a new key.
 
-- the capability name
-- `principalId`
-- `idempotencyKey`
+## How far this goes
 
-Kaji also fingerprints the validated input.
+Kaji prevents duplicates through the store you give it. `memoryStore()` only sees requests in its own process and forgets everything on restart. A store that saves to a shared database can cover many processes and restarts, if it claims requests atomically (see [Stores](/docs/concepts/stores)).
 
-Use one key for one intended operation. Use the same key only when you retry that same operation.
-
-## First claim
-
-The store returns `status: "claimed"` for a new identity. Kaji then checks authorization, requests approval when required, and can execute the capability.
-
-The claim operation must be atomic. Concurrent callers for the same identity cannot both receive a new claim.
-
-## Identical duplicate
-
-The store returns `status: "existing"` when the identity and input fingerprint match an active or recorded claim.
-
-The duplicate caller waits for or receives the same recorded outcome. Kaji does not call the capability again.
-
-This behavior also applies to recorded `unknown` outcomes. A retry does not turn `unknown` into `succeeded` or `failed`.
-
-## Conflicting duplicate
-
-The store returns `status: "conflict"` when the identity matches but the validated input fingerprint differs.
-
-Kaji returns `status: "failed"`. It does not call the capability with the conflicting input.
-
-## Guarantee scope
-
-Kaji coordinates duplicates through the configured `ExecutionStore`.
-
-`memoryStore()` coordinates only callers inside one process. A restart removes its records, and another process cannot see its claims.
-
-A durable shared store can provide broader coordination. Its exact guarantee depends on its atomic claim and persistence behavior.
-
-Kaji does not claim globally distributed exactly-once execution.
-
-## External providers
-
-Kaji prevents a duplicate capability call for one stored claim. It cannot control what an external provider does inside that call.
-
-Pass `context.idempotencyKey` to the provider when possible:
+Kaji cannot control what an outside service does inside `execute`. If your provider supports idempotency keys, pass it yours:
 
 ```ts
 execute: (input, context) =>
@@ -68,5 +33,3 @@ execute: (input, context) =>
     signal: context.signal,
   }),
 ```
-
-Provider idempotency and reconciliation remain application responsibilities.
