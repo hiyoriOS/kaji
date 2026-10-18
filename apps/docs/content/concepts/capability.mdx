@@ -1,9 +1,9 @@
 ---
 title: Capabilities
-description: Define one validated, authorized application action.
+description: Define an action with its input, permission check, optional approval, and function.
 ---
 
-A capability describes one application action that Kaji can govern.
+A capability describes one action your app can perform.
 
 ```ts
 const refundPayment = capability({
@@ -15,56 +15,74 @@ const refundPayment = capability({
 });
 ```
 
+## What happens on each call
+
+`kaji.execute()` always runs these steps in order:
+
+1. Validate the input.
+2. Check whether this request was already made (see [Idempotency](/docs/concepts/idempotency)).
+3. Run `authorize`.
+4. Ask for approval, if the capability needs it.
+5. Run `execute`.
+6. Save the result.
+
+If a step stops the request, the later steps do not run.
+
 ## `name`
 
-`name` must be a non-empty string. Use a stable name that identifies the application action.
-
-The name forms part of the execution identity and input fingerprint. Renaming a capability changes those values.
+A non-empty string that identifies the action, such as `"payments.refund"`. Keep it stable: it is part of how Kaji recognizes repeat requests, so renaming it means old retries no longer match.
 
 ## `input`
 
-`input` is a [Standard Schema](https://standardschema.dev) V1 schema: Zod, Valibot, ArkType, or a hand-written object exposing a `~standard` property with `version: 1` and a `validate` function. `capability()` checks this shape when you construct the capability and throws if `input` does not conform. It never calls a schema's own methods (`parse`, `safeParse`) and never runs validation at construction time.
+A [Standard Schema](https://standardschema.dev) V1 schema: Zod, Valibot, ArkType, or an object with a `~standard` property that has `version: 1` and a `validate` function. `authorize`, `approval`, and `execute` receive the validated result, never the raw input.
 
-Kaji passes the schema's validated _output_ to `authorize`, `approval`, and `execute`. These functions never receive the original unvalidated value. Invalid input rejects `kaji.execute()` with `InvalidInputError` before any claim, authorization, approval, or execution; its `issues` property carries the schema's Standard Schema issues verbatim.
-
-Kaji has no runtime dependency on Zod, Valibot, ArkType, or any other validation library.
+If validation fails, `kaji.execute()` rejects with an `InvalidInputError` whose `issues` property holds the schema's issues. Nothing else runs.
 
 ## `authorize`
 
-`authorize` receives the caller-supplied `principalId` and validated input.
+Required. Receives `principalId` and the validated input, and returns `true` or `false` (or a promise of either). `false`, or a thrown error, gives a `denied` result and `execute` does not run.
 
-It can return a boolean or a promise of a boolean. A `false` result or thrown error returns `status: "denied"` and prevents capability execution.
+Kaji does not log users in. Set `principalId` from your own session or auth check, and never from untrusted request data.
 
-Read [Authorization](/docs/concepts/authorization) for policy boundaries and failure behavior.
+```ts
+await kaji.execute(deleteProject, {
+  input: { projectId: "project_123" },
+  principalId: session.userId,
+  idempotencyKey: request.idempotencyKey,
+});
+```
 
 ## `approval`
 
-`approval` is optional. It receives the same principal ID and validated input.
+Optional. A function that returns `true` when this request needs approval. It receives the same `principalId` and input as `authorize`, and must return synchronously.
 
-When it returns `true`, Kaji asks the executor's `approve` handler for a decision. The predicate itself is synchronous in the current public API.
+When it returns `true`, Kaji calls the `approve` function you passed to `createKaji()`:
 
-Read [Approval](/docs/concepts/approval) for the full contract.
+```ts
+const kaji = createKaji({
+  store,
+  approve: async ({ capability, principalId, input, idempotencyKey }) => {
+    return approvalService.request({ capability, principalId, input, idempotencyKey });
+  },
+});
+```
+
+`approve` returns `{ approved: boolean, evidence?: unknown }`. Only `{ approved: true }` lets the action run. Anything else gives a `rejected` result: no `approve` function, an invalid return value, `approved: false`, or a thrown error. Kaji does not save `evidence`, so keep any approval record in your own system.
+
+`authorize` runs first, so an unauthorized request never reaches `approve`.
 
 ## `execute`
 
-`execute` receives validated input and an `ExecutionContext`:
+Receives the validated input and a context:
 
 ```ts
-export type ExecutionContext = {
+type ExecutionContext = {
   readonly principalId: string;
   readonly idempotencyKey: string;
   readonly signal: AbortSignal;
 };
 ```
 
-Use `context.idempotencyKey` when the external provider supports idempotency. Observe `context.signal` when the provider supports cancellation.
+Pass `context.idempotencyKey` to your provider if it supports one, and pass `context.signal` to anything that can be cancelled.
 
-A successful return produces `status: "succeeded"`. A normal thrown error produces `status: "unknown"` after execution begins.
-
-Throw `knownFailure(cause)` only when application code knows that no side effect committed.
-
-## Capability objects
-
-`capability()` validates its declaration and returns a frozen object. The public `Capability<Output, Result>` type exposes only `name`.
-
-Kaji retains the full declaration internally. Callers execute the capability through `kaji.execute()` rather than calling its functions directly.
+Returning gives `succeeded`. Throwing gives `unknown`, because the side effect may already have happened. Throw `knownFailure(cause)` only when you know it did not (see [Outcomes](/docs/concepts/outcomes)).

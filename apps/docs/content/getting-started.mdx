@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Install Kaji, define a capability, execute it, and handle the result.
+description: Install Kaji, define an action, run it, and handle the result.
 ---
 
 import InstallTabs from "../src/components/content/install-tabs.astro";
@@ -15,17 +15,15 @@ import InstallTabs from "../src/components/content/install-tabs.astro";
   }}
 />
 
-Kaji accepts any [Standard Schema](https://standardschema.dev) V1 schema as `input`. This guide uses Zod, but Valibot, ArkType, and hand-written schemas work the same way.
+Kaji validates input with any [Standard Schema](https://standardschema.dev) library, including Zod, Valibot, and ArkType. This guide uses Zod.
 
 ## Define a capability
 
-A capability names one application action. It also defines input validation, authorization, optional approval, and execution.
+A capability is one action your app can perform, with its input, permission check, and the function that does the work.
 
 ```ts
 import { capability } from "@hiyorios/kaji";
 import { z } from "zod";
-
-const refunds = new Map<string, number>();
 
 const refundPayment = capability({
   name: "payments.refund",
@@ -35,15 +33,13 @@ const refundPayment = capability({
   }),
   authorize: ({ principalId }) => principalId.startsWith("user_"),
   execute: async ({ paymentId, amount }, context) => {
-    refunds.set(paymentId, amount);
+    // Call your payment provider here.
     return { refundId: `refund:${context.idempotencyKey}`, amount };
   },
 });
 ```
 
-Kaji validates `input` before it calls `authorize` or `execute`. Invalid input rejects `kaji.execute()`'s promise with `InvalidInputError` instead of resolving to a status; no claim, authorization, approval, or execution happens.
-
-## Create the executor
+## Create a Kaji instance
 
 ```ts
 import { createKaji, memoryStore } from "@hiyorios/kaji";
@@ -51,11 +47,9 @@ import { createKaji, memoryStore } from "@hiyorios/kaji";
 const kaji = createKaji({ store: memoryStore() });
 ```
 
-`memoryStore()` is process-local and non-durable. Use it for development, tests, and examples.
+`memoryStore()` keeps records in memory for one process. Use it for development and tests. In production, use a store that saves to a database (see [Stores](/docs/concepts/stores)).
 
-For production, provide an `ExecutionStore` with the durability and coordination that your deployment requires.
-
-## Execute the capability
+## Run it
 
 ```ts
 const outcome = await kaji.execute(refundPayment, {
@@ -65,13 +59,11 @@ const outcome = await kaji.execute(refundPayment, {
 });
 ```
 
-The caller must provide `principalId` and `idempotencyKey`. Kaji does not infer either value.
+You supply `principalId` (who is asking) and `idempotencyKey` (a unique ID for this request). Kaji does not generate either one. Retry a request with the same key. Use a new key for a new request.
 
-Within one capability and principal, the idempotency key must identify one intended operation. Reuse the same key only for a retry of that operation.
+If the input fails validation, `kaji.execute()` rejects with an `InvalidInputError`.
 
 ## Handle the result
-
-Extend the switch on `outcome.status` from the call above. `reconcileRefund` is application code that checks the payment provider and the stored evidence to decide what actually happened.
 
 ```ts
 switch (outcome.status) {
@@ -85,18 +77,18 @@ switch (outcome.status) {
     console.error(outcome.error);
     break;
   case "unknown":
-    await reconcileRefund(outcome.evidence);
+    // The action started but may or may not have finished.
+    // Check your payment provider before retrying.
+    await checkRefundWithProvider(outcome.evidence);
     break;
 }
 ```
 
-Do not blindly retry `unknown`. The side effect can commit before an error reaches Kaji.
-
-Read [Outcomes](/docs/concepts/outcomes) for the exact meaning of every status.
+See [Outcomes](/docs/concepts/outcomes) for what each status means.
 
 ## Add approval
 
-A capability can declare when approval is required. This is a separate, illustrative capability; `RefundInput`, `canRefund`, and `refundThroughProvider` stand in for application-defined validation, policy, and provider code:
+Add an `approval` function to say which requests need a person's sign-off, and an `approve` function to ask for it.
 
 ```ts
 const refundPayment = capability({
@@ -106,23 +98,18 @@ const refundPayment = capability({
   approval: ({ input }) => input.amount >= 1_000,
   execute: refundThroughProvider,
 });
-```
 
-Your application supplies the approval handler:
-
-```ts
 const kaji = createKaji({
   store,
   approve: async (request) => approvalService.request(request),
 });
 ```
 
-Kaji fails closed. Missing, invalid, rejected, or failed approval prevents capability execution.
+If approval is not given, the action does not run. See [Capabilities](/docs/concepts/capability) for details.
 
-## Related guides
+## Next
 
 - [Capabilities](/docs/concepts/capability)
-- [Authorization](/docs/concepts/authorization)
 - [Idempotency](/docs/concepts/idempotency)
 - [Stores](/docs/concepts/stores)
 - [Refund example](/docs/reference/refund-example)

@@ -1,49 +1,14 @@
 ---
 title: Documentation
-description: Learn how Kaji governs application actions requested by agents and other callers.
+description: Learn how to run application actions safely with Kaji.
 ---
 
-Kaji is a TypeScript library that runs inside your application. It puts one execution boundary in front of application actions that can create side effects.
-
-Use Kaji when an agent, automation, or other caller can trigger functions such as `refundPayment()` or `cancelBooking()`.
+Kaji is a TypeScript library for running application actions, like `refundPayment()` or `cancelBooking()`, when an agent, automation, or API caller asks for them. It validates input, checks permission, asks for approval when needed, runs the action once per request, and reports what happened.
 
 ## Start here
 
-1. [Install Kaji and run a capability](/docs/getting-started).
-2. [Understand the execution boundary](/docs/architecture).
-3. [Review the six result statuses](/docs/concepts/outcomes).
-4. [Choose an execution store](/docs/concepts/stores).
-5. [Check the public API](/docs/reference/api).
-
-## What Kaji governs
-
-Kaji validates input, claims an idempotency key, checks authorization, requests approval when required, executes the capability, and records the result.
-
-Kaji applies this order every time. Callers cannot select a different order through the public API.
-
-## Application ownership
-
-Your application defines each capability. It also owns caller identity, authorization policy, approval policy, the production store, provider calls, and recovery for `unknown` results.
-
-Kaji does not replace these systems. It gives them one consistent execution boundary.
-
-## Result model
-
-Every governed request returns one of six statuses:
-
-- `succeeded`
-- `denied`
-- `rejected`
-- `failed`
-- `cancelled`
-- `unknown`
-
-Read [Outcomes](/docs/concepts/outcomes) before you add retries or recovery logic.
-
-## Store-dependent guarantees
-
-The configured `ExecutionStore` coordinates claims and recorded outcomes.
-
-`memoryStore()` works only inside one process. It has no persistence, cross-process coordination, or restart durability.
-
-Kaji does not claim globally distributed exactly-once execution. Your store and external provider determine the full guarantee.
+1. [Getting started](/docs/getting-started): install Kaji and run your first action.
+2. [Capabilities](/docs/concepts/capability): define an action and its rules.
+3. [Outcomes](/docs/concepts/outcomes): what each result means and what to do with it.
+4. [Stores](/docs/concepts/stores): where Kaji keeps its records.
+5. [API reference](/docs/reference/api): every export and type.

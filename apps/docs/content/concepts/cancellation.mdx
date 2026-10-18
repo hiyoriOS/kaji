@@ -1,11 +1,9 @@
 ---
 title: Cancellation
-description: Use `AbortSignal` for cooperative cancellation without assuming rollback or forced termination.
+description: Cancel requests and set timeouts with AbortSignal.
 ---
 
-Kaji uses the platform `AbortSignal`. It does not add a custom cancellation token.
-
-A capability receives the effective signal through `ExecutionContext`:
+Kaji uses the standard `AbortSignal`. Your `execute` function receives it as `context.signal`. Pass it to anything that can be cancelled:
 
 ```ts
 execute: async (input, context) => {
@@ -16,50 +14,15 @@ execute: async (input, context) => {
 },
 ```
 
-## Pre-execution
+To cancel a request, pass your own signal to `kaji.execute()` as `signal`.
 
-Kaji checks the signal before these steps:
+## Before the action starts
 
-1. input validation
-2. the store claim
-3. authorization
-4. approval
-5. capability execution
+If the signal is already aborted before `execute` is called, Kaji returns `cancelled` and `execute` does not run.
 
-When the signal is already aborted at one of these checks, Kaji returns `cancelled`. It does not call the capability.
+## After the action starts
 
-Cancellation before the store claim has no execution record. Cancellation after the claim is recorded when the store remains available.
-
-## Post-execution
-
-After Kaji calls `execute()`, cancellation is cooperative. Kaji cannot forcibly terminate application code or a remote request.
-
-The capability or downstream API must observe `context.signal` for cancellation to interrupt work.
-
-If `execute()` rejects after the signal aborts, Kaji returns `unknown`. The side effect can commit before the rejection reaches Kaji.
-
-If `execute()` ignores the signal and later resolves, Kaji can return `succeeded`.
-
-## `timeoutMs`
-
-```ts
-const kaji = createKaji({
-  store: memoryStore(),
-  timeoutMs: 30_000,
-});
-```
-
-`timeoutMs` aborts the effective signal after the configured duration.
-
-When the caller also supplies a signal, Kaji combines both signals with `AbortSignal.any()`. The first signal to abort controls the effective signal.
-
-Kaji continues awaiting `execute()` until it settles. Therefore, `timeoutMs` does not bound the wall-clock duration of capability execution.
-
-A timeout does not prove rollback. It does not prove that a remote operation stopped or failed.
-
-## Handle an abort
-
-Pass `context.signal` to downstream APIs that support cancellation. For custom work, check the signal at safe points.
+Kaji cannot stop your function or a remote request. `execute` has to watch `context.signal` itself:
 
 ```ts
 execute: async (input, context) => {
@@ -68,10 +31,18 @@ execute: async (input, context) => {
 },
 ```
 
-Do not convert a post-start abort into `knownFailure()` unless application code proves that no side effect committed.
+- If `execute` rejects after an abort, Kaji returns `unknown`, because the action may have already happened.
+- If `execute` ignores the signal and finishes, Kaji returns `succeeded`.
 
-## Related guides
+An abort does not undo anything and does not prove a remote request stopped.
 
-- [Execution](/docs/concepts/executor)
-- [Outcomes](/docs/concepts/outcomes)
-- [Idempotency](/docs/concepts/idempotency)
+## Timeouts
+
+```ts
+const kaji = createKaji({
+  store: memoryStore(),
+  timeoutMs: 30_000,
+});
+```
+
+After `timeoutMs`, Kaji aborts `context.signal`. It does not stop `execute`: Kaji still waits for it to finish. For the timeout to have an effect, your function or the API it calls must watch the signal. If you also pass a `signal` to `kaji.execute()`, whichever aborts first wins.
