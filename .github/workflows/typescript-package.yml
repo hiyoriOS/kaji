@@ -2,6 +2,8 @@ name: TypeScript package
 
 # Package checks run only when something the package depends on changes.
 # Docs-only changes are verified by the docs-site workflow instead.
+# Runs on a Blacksmith runner (billed by Blacksmith, not GitHub Actions
+# minutes); publish.yml stays on GitHub-hosted runners for npm provenance.
 on:
   pull_request:
     paths:
@@ -25,9 +27,14 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR cancels the run it replaces.
+concurrency:
+  group: typescript-package-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
