@@ -3,17 +3,22 @@ name: Docs site
 # Only a real change under apps/docs (or to this workflow) starts the
 # docs motion: verify and build the site. Publishing itself is owned by
 # the Cloudflare Pages git integration, which rebuilds kaji.build from
-# the same pushes to main.
+# the same pushes to main. Runs on a Blacksmith runner (billed by
+# Blacksmith, not GitHub Actions minutes).
 on:
   pull_request:
     paths:
       - "apps/docs/**"
+      - "bun.lock"
+      - "package.json"
       - ".github/workflows/docs-site.yml"
   push:
     branches:
       - main
     paths:
       - "apps/docs/**"
+      - "bun.lock"
+      - "package.json"
       - ".github/workflows/docs-site.yml"
 
 permissions:
@@ -32,7 +37,7 @@ env:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
