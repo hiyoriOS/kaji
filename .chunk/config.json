@@ -1,0 +1,48 @@
+{
+  "commands": [
+    {
+      "name": "check",
+      "run": "bun install --frozen-lockfile && bun run format:check && bun run lint",
+      "role": "gate",
+      "timeout": 300
+    },
+    {
+      "name": "build",
+      "run": "bun install --frozen-lockfile && bun run build && bun run typecheck",
+      "role": "gate",
+      "timeout": 300
+    },
+    {
+      "name": "test",
+      "run": "bun install --frozen-lockfile && bun run test",
+      "role": "gate",
+      "timeout": 300
+    }
+  ],
+  "vcs": {
+    "org": "hiyoriOS",
+    "repo": "kaji"
+  },
+  "validation": {
+    "sidecarImage": "df3b9cd7-3885-4ff6-a4f6-18be4e4a3f73"
+  },
+  "environment": {
+    "stack": "bun",
+    "setup": [
+      {
+        "name": "bun",
+        "command": "command -v bun >/dev/null && [ \"$(bun --version)\" = 1.3.11 ] || { curl -fsSL https://bun.sh/install | bash -s bun-v1.3.11 && sudo ln -sf $HOME/.bun/bin/bun /usr/local/bin/bun && sudo ln -sf $HOME/.bun/bin/bun /usr/local/bin/bunx; }"
+      },
+      {
+        "name": "node",
+        "command": "command -v node >/dev/null || { curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - && sudo apt-get install -y nodejs; }"
+      },
+      {
+        "name": "install",
+        "command": "bun install --frozen-lockfile"
+      }
+    ],
+    "image": "",
+    "image_version": ""
+  }
+}
